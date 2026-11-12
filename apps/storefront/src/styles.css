@@ -1,0 +1,181 @@
+/* Storefront styles, ported from the approved light prototype. */
+/* ── P0-2 期限倒數橫幅 */
+.deadline-bar{position:sticky;top:0;z-index:60;background:linear-gradient(90deg,var(--maxxis-deep),var(--maxxis));color:#FFFFFF;display:flex;align-items:center;justify-content:center;gap:14px;padding:9px 16px;font-weight:700;flex-wrap:wrap}
+.deadline-bar .tag{font-family:var(--disp);text-transform:uppercase;letter-spacing:.12em;font-size:13px;background:#FFFFFF;color:var(--maxxis-deep);padding:2px 10px;border-radius:4px}
+.deadline-bar .count{font-family:var(--num);font-variant-numeric:tabular-nums;font-size:15px}
+.deadline-bar small{font-weight:500;opacity:.85}
+
+/* ── Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--edge);background:rgba(255,255,255,.92);backdrop-filter:blur(8px)}
+.logo{font-family:var(--disp);font-weight:700;font-size:24px;letter-spacing:.06em;color:var(--maxxis)}
+.logo span{color:var(--ink);font-weight:500}
+nav.top{display:flex;gap:22px;font-size:14px;color:var(--dim)}
+nav.top a:hover{color:var(--ink)}
+@media(max-width:760px){nav.top{display:none}}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+/* ── 麵包屑 */
+.crumb{padding:18px 0 0;font-size:13px;color:var(--dim)}
+.crumb b{color:var(--ink);font-weight:500}
+
+/* ── Hero 主區 */
+.hero{display:grid;grid-template-columns:1.15fr .85fr;gap:36px;padding:26px 0 44px;align-items:start}
+@media(max-width:920px){.hero{grid-template-columns:1fr}}
+
+/* 商品視覺 */
+.stage{background:radial-gradient(120% 90% at 30% 20%,#FFFFFF 0%,#EDF0F4 55%,#DCE2E9 100%);border:1px solid var(--edge);border-radius:var(--radius);padding:34px;position:relative;overflow:hidden}
+.stage .badge-ev{position:absolute;top:18px;left:18px;font-family:var(--disp);letter-spacing:.14em;font-size:13px;color:var(--volt);border:1px solid var(--volt);padding:3px 12px;border-radius:99px;text-transform:uppercase}
+.tire-visual{display:flex;justify-content:center;padding:16px 0 6px}
+.tire{width:min(320px,72vw);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3A424C 0%,#22272E 34%,#14181D 70%);border:14px solid #0B0E11;box-shadow:0 20px 44px rgba(20,28,38,.28),inset 0 0 0 3px #303842;position:relative}
+.tire::before{content:"";position:absolute;inset:20%;border-radius:50%;background:radial-gradient(circle at 40% 35%,#4A5560,#2A313A 60%,#1A1F26);box-shadow:inset 0 0 18px rgba(0,0,0,.7)}
+.tire::after{content:"MAXXIS  VICTRA SPORT EV+";position:absolute;inset:6%;border-radius:50%;display:flex;align-items:flex-end;justify-content:center;font-family:var(--disp);font-size:13px;letter-spacing:.34em;color:#6B7681;padding-bottom:9%}
+.stage .caption{display:flex;justify-content:space-between;color:var(--dim);font-size:13px;margin-top:14px;font-family:var(--num)}
+
+/* ── P0-3 四步驟流程列（回答「輪胎寄到哪」） */
+.flow{margin-top:16px;background:var(--carbon);border:1px solid var(--edge);border-radius:var(--radius);padding:18px 20px}
+.flow h3{font-family:var(--disp);font-size:16px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;margin-bottom:14px}
+.flow ol{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;list-style:none;counter-reset:step}
+@media(max-width:640px){.flow ol{grid-template-columns:repeat(2,1fr)}}
+.flow li{counter-increment:step;background:var(--carbon-2);border:1px solid var(--edge);border-radius:8px;padding:12px 12px 10px;position:relative}
+.flow li::before{content:counter(step);font-family:var(--num);font-weight:700;font-size:13px;color:var(--maxxis);border:1px solid var(--maxxis);width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px}
+.flow li b{display:block;font-size:14px;margin-bottom:2px}
+.flow li p{font-size:12.5px;color:var(--dim);line-height:1.55}
+.flow .note{margin-top:12px;font-size:13px;color:var(--volt)}
+.flow .note b{color:var(--volt)}
+
+/* ── 購買面板 */
+.panel{background:var(--carbon);border:1px solid var(--edge);border-radius:var(--radius);padding:24px;position:sticky;top:64px;box-shadow:0 2px 10px rgba(16,24,40,.06)}
+@media(max-width:920px){.panel{position:static}}
+.eyebrow{font-family:var(--disp);font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--maxxis);margin-bottom:6px}
+h1{font-family:var(--disp);font-weight:600;font-size:30px;line-height:1.25;letter-spacing:.02em}
+h1 small{display:block;font-family:var(--body);font-size:14px;font-weight:400;color:var(--dim);letter-spacing:0;margin-top:4px}
+
+/* P0-4 價格錨定 */
+.price-row{display:flex;align-items:baseline;gap:12px;margin:18px 0 4px;font-family:var(--num)}
+.price-row .was{color:var(--dim);text-decoration:line-through;font-size:15px}
+.price-row .now{font-size:34px;font-weight:700;color:var(--maxxis);font-variant-numeric:tabular-nums}
+.price-row .per{font-size:13px;color:var(--dim)}
+.price-meta{font-size:13px;color:var(--ok);margin-bottom:16px}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;color:var(--dim);margin-bottom:6px}
+.field select{width:100%;background:var(--carbon-2);border:1px solid var(--edge);color:var(--ink);border-radius:8px;padding:11px 12px;font-family:var(--body);font-size:14px;appearance:auto}
+.field .hint{font-size:12px;color:var(--dim);margin-top:5px}
+
+/* 已選店家狀態卡 */
+.shop-slot{border:1px dashed var(--edge);border-radius:8px;padding:13px 14px;margin-bottom:16px;font-size:14px;color:var(--dim);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.shop-slot.filled{border-style:solid;border-color:var(--maxxis);color:var(--ink);background:rgba(232,101,15,.07)}
+.shop-slot .go{font-size:13px;color:var(--maxxis);white-space:nowrap;background:none;border:none;padding:0;font-family:var(--body)}
+.shop-slot .go:hover{text-decoration:underline}
+
+.confirm{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--dim);margin-bottom:16px}
+.confirm input{margin-top:4px;accent-color:var(--maxxis)}
+
+.cta{width:100%;border:none;border-radius:8px;padding:15px;font-size:16px;font-weight:700;font-family:var(--body);background:var(--maxxis);color:#FFFFFF;transition:filter .15s}
+.cta:hover:not(:disabled){filter:brightness(1.1)}
+.cta:disabled{background:var(--carbon-2);color:var(--dim);cursor:not-allowed;border:1px solid var(--edge)}
+.panel .fine{font-size:12px;color:var(--dim);margin-top:12px;line-height:1.6}
+.panel .fine b{color:var(--ink);font-weight:500}
+
+/* ── 區段標題 */
+.sec{padding:44px 0}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px}
+.sec-head h2{font-family:var(--disp);font-size:26px;font-weight:600;letter-spacing:.04em}
+.sec-head span{font-size:13px;color:var(--dim)}
+
+/* ── P1-5 規格 */
+.spec-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:26px}
+@media(max-width:860px){.spec-grid{grid-template-columns:1fr}}
+table.spec{width:100%;border-collapse:collapse;background:var(--carbon);border:1px solid var(--edge);border-radius:var(--radius);overflow:hidden}
+table.spec th,table.spec td{padding:11px 16px;text-align:left;font-size:14px;border-bottom:1px solid var(--edge)}
+table.spec tr:last-child th,table.spec tr:last-child td{border-bottom:none}
+table.spec th{color:var(--dim);font-weight:500;width:38%;background:var(--carbon-2)}
+table.spec td{font-family:var(--num)}
+.ev-points{display:grid;gap:12px}
+.ev-card{background:var(--carbon);border:1px solid var(--edge);border-left:3px solid var(--volt);border-radius:8px;padding:14px 16px}
+.ev-card b{display:block;font-size:14.5px;margin-bottom:3px}
+.ev-card p{font-size:13px;color:var(--dim)}
+
+/* ── P0-1 店家選擇器（signature） */
+.selector-note{font-size:13.5px;color:var(--dim);margin:-10px 0 18px}
+.region-rail{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.chip{background:var(--carbon);border:1px solid var(--edge);color:var(--dim);border-radius:99px;padding:7px 16px;font-size:13.5px;font-family:var(--body)}
+.chip[aria-pressed="true"]{background:var(--maxxis);border-color:var(--maxxis);color:#FFFFFF;font-weight:700}
+.chip:hover:not([aria-pressed="true"]){border-color:var(--dim);color:var(--ink)}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.shop-card{background:var(--carbon);border:1px solid var(--edge);border-radius:var(--radius);padding:16px 16px 14px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s;box-shadow:0 1px 3px rgba(16,24,40,.05)}
+.shop-card:hover{border-color:#B7C1CC}
+.shop-card.selected{border-color:var(--maxxis);box-shadow:0 0 0 1px var(--maxxis)}
+.shop-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.shop-name{font-weight:700;font-size:15.5px}
+.shop-region{font-family:var(--disp);font-size:12px;letter-spacing:.12em;color:var(--volt);border:1px solid var(--edge);padding:1px 9px;border-radius:99px;white-space:nowrap}
+.shop-addr{font-size:13px;color:var(--dim)}
+.shop-meta{display:flex;gap:14px;font-size:12.5px;color:var(--dim);font-family:var(--num)}
+.shop-meta .open{color:var(--ok)}
+.shop-actions{display:flex;gap:8px;margin-top:4px}
+.shop-actions a{flex:0 0 auto;font-size:12.5px;color:var(--dim);border:1px solid var(--edge);border-radius:6px;padding:5px 11px}
+.shop-actions a:hover{color:var(--ink);border-color:var(--dim)}
+.pick{margin-left:auto;font-size:13px;font-weight:700;border-radius:6px;padding:6px 16px;border:1px solid var(--maxxis);background:none;color:var(--maxxis)}
+.shop-card.selected .pick{background:var(--maxxis);color:#FFFFFF}
+.coverage{margin-top:20px;background:var(--carbon);border:1px solid var(--edge);border-left:3px solid var(--danger);border-radius:8px;padding:14px 16px;font-size:13.5px;color:var(--dim)}
+.coverage b{color:var(--ink)}
+
+/* ── 通知節奏 */
+.timeline{display:grid;grid-template-columns:repeat(5,1fr);gap:0;counter-reset:tl}
+@media(max-width:760px){.timeline{grid-template-columns:1fr}}
+.tl{padding:14px 16px;border:1px solid var(--edge);background:var(--carbon);font-size:13px;color:var(--dim);position:relative}
+.tl:first-child{border-radius:var(--radius) 0 0 var(--radius)}
+.tl:last-child{border-radius:0 var(--radius) var(--radius) 0}
+@media(max-width:760px){.tl:first-child,.tl:last-child{border-radius:0}}
+.tl b{display:block;color:var(--ink);font-size:13.5px;margin-bottom:2px}
+.tl em{font-style:normal;font-family:var(--disp);letter-spacing:.1em;font-size:11.5px;color:var(--maxxis);text-transform:uppercase;display:block;margin-bottom:6px}
+
+/* ── 評價 */
+.reviews{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.review{background:var(--carbon);border:1px solid var(--edge);border-radius:var(--radius);padding:16px}
+.review .stars{color:var(--maxxis);letter-spacing:2px;font-size:13px}
+.review p{font-size:13.5px;color:var(--dim);margin:8px 0 10px}
+.review .who{font-size:12.5px;color:var(--ink);font-family:var(--num)}
+.review .who span{color:var(--dim)}
+
+/* ── FAQ */
+details{background:var(--carbon);border:1px solid var(--edge);border-radius:8px;margin-bottom:10px;overflow:hidden}
+details summary{padding:14px 18px;cursor:pointer;font-weight:500;font-size:14.5px;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details summary::after{content:"+";font-family:var(--num);color:var(--maxxis);font-size:18px}
+details[open] summary::after{content:"–"}
+details .a{padding:0 18px 15px;font-size:13.5px;color:var(--dim)}
+
+footer{border-top:1px solid var(--edge);padding:30px 24px;text-align:center;font-size:12.5px;color:var(--dim);line-height:2}
+
+/* ── 行動端底部固定 CTA */
+.sticky-cta{display:none}
+@media(max-width:920px){
+  .sticky-cta{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:70;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);border-top:1px solid var(--edge);padding:10px 16px calc(10px + env(safe-area-inset-bottom));gap:12px;align-items:center}
+  .sticky-cta .p{font-family:var(--num);font-weight:700;font-size:19px;color:var(--maxxis)}
+  .sticky-cta .p small{display:block;font-size:11px;color:var(--dim);font-weight:400}
+  .sticky-cta button{flex:1;border:none;border-radius:8px;padding:13px;font-weight:700;font-size:15px;background:var(--maxxis);color:#FFFFFF}
+  body{padding-bottom:74px}
+}
+
+/* ── Pages beyond the campaign page (auth, checkout, account, order) */
+.page{max-width:760px;margin:0 auto;padding:32px 20px 80px}
+.page h1{font-size:28px;margin-bottom:18px}
+.card{background:var(--carbon);border:1px solid var(--edge);border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:0 1px 3px rgba(16,24,40,.05)}
+.card h2{font-family:var(--disp);font-size:20px;letter-spacing:.04em;margin-bottom:12px}
+.field input,.field textarea{width:100%;background:var(--carbon-2);border:1px solid var(--edge);color:var(--ink);border-radius:8px;padding:11px 12px;font-family:var(--body);font-size:14px}
+.row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;font-size:14px;border-bottom:1px solid var(--edge)}
+.row:last-child{border-bottom:none}.row span:first-child{color:var(--dim)}
+.btn{border:none;border-radius:8px;padding:12px 20px;font-weight:700;font-size:14.5px;background:var(--maxxis);color:#fff}
+.btn.ghost{background:none;border:1px solid var(--edge);color:var(--ink)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.progress{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:6px 0 18px}
+.progress div{text-align:center;font-size:12px;color:var(--dim);border-top:3px solid var(--edge);padding-top:8px}
+.progress div.done{border-color:var(--maxxis);color:var(--ink);font-weight:700}
+.status-pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 10px;border-radius:99px;background:rgba(232,101,15,.12);color:var(--maxxis-deep)}
+.link{color:var(--maxxis);background:none;border:none;font:inherit;padding:0;text-decoration:underline;cursor:pointer}
+.ok-note{color:var(--ok);font-size:13.5px;margin:8px 0}
+.coverage form{display:grid;gap:8px;margin-top:12px;max-width:420px}
+.coverage form input{background:var(--carbon-2);border:1px solid var(--edge);border-radius:6px;padding:8px 10px;font-family:var(--body)}
+.top-actions{display:flex;gap:16px;align-items:center;font-size:14px}
