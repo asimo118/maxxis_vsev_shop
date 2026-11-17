@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1.7
 #
+# Multi-platform (linux/amd64 + linux/arm64): the deps/build stages always run on the BUILDER's native
+# platform — the output is platform-independent JavaScript, and better-sqlite3 ships prebuilt binaries for
+# every platform inside its package — so only the thin runtime stages are produced per target platform.
+#
 # Two runtime images from one build:
 #   --target api   Node API (SQLite file on the /data volume)
 #   --target web   nginx serving the storefront (:80) and admin console (:8081), proxying /api to the API
@@ -9,7 +13,7 @@ ARG NODE_IMAGE=node:22-bookworm-slim
 ARG NGINX_IMAGE=nginx:1.27-alpine
 
 # ───────────── dependencies (cached until a manifest or the lockfile changes) ─────────────
-FROM ${NODE_IMAGE} AS deps
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS deps
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     npm_config_package_import_method=copy

@@ -23,8 +23,9 @@ Portainer：拉新 image、重新部署 stack（資料在 volume，不受影響�
 把 PR 合併到 `main`。Actions 跑完後，GitHub → 你的帳號 → **Packages** 會出現 `maxxis_vsev_shop/api` 與 `maxxis_vsev_shop/web`。
 （repo 是 private，package 預設也是 private。）
 
-伺服器是 ARM（例如 Apple Silicon、Raspberry Pi、部分 NAS）時：repo → Settings → Secrets and variables → Actions → **Variables**
-新增 `IMAGE_PLATFORMS` = `linux/amd64,linux/arm64`，再重跑一次 workflow。
+image 同時提供 `linux/amd64` 與 `linux/arm64`（Apple Silicon、Raspberry Pi、ARM NAS／雲端主機皆可），Docker 會自動挑對的版本。
+CI 會先在模擬的 ARM 環境把整套 stack 跑過 smoke test 才發佈。只需要單一架構時，可在 repo → Settings → Secrets and variables →
+Actions → **Variables** 設 `IMAGE_PLATFORMS`（例如 `linux/amd64`）縮短建置時間。
 
 ### 2. 讓 Portainer 能讀 repo 和 image
 
