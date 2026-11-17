@@ -21,7 +21,7 @@ export function createApp(c: Container): Express {
   const app = express();
   const mw = c.middleware;
   app.disable("x-powered-by");
-  app.set("trust proxy", 1);
+  app.set("trust proxy", c.config.TRUST_PROXY);
   app.use(helmet());
   app.use(cors({ origin: c.config.CORS_ORIGINS.split(",").map((s) => s.trim()), credentials: false }));
   if (c.config.NODE_ENV !== "test") app.use(pinoHttp({ logger: c.logger }));
@@ -43,6 +43,10 @@ export function createApp(c: Container): Express {
   const api = Router();
   api.use(["/auth/login", "/auth/register"], credentialLimit);
   api.use("/track", trackLimit);
+  /** Public liveness + build version — CI uses it to confirm a deploy actually rolled out. */
+  api.get("/health", (_req, res) => {
+    res.json({ ok: true, version: c.config.APP_VERSION });
+  });
   api.use(createAuthRouter(c.auth, mw));
   api.use(createCatalogRouter(c.catalog));
   api.use(createVehicleRouter(c.vehicles, mw));

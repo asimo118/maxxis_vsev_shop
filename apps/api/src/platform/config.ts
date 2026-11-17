@@ -24,6 +24,18 @@ const envSchema = z
     PAYMENT_WEBHOOK_SECRET: z.string().optional(),
     /** The mock gateway auto-confirms payments. Never enable in production. */
     PAYMENT_GATEWAY: z.enum(["mock"]).default("mock"),
+    /**
+     * Staging / demo only: let a production build run with the auto-approving mock gateway.
+     * Every payment then succeeds without money moving — never enable this on the live site.
+     */
+    ALLOW_MOCK_PAYMENTS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((v) => v === "true"),
+    /** Reverse-proxy hops in front of the API (bundled nginx = 1; add one per extra proxy such as Traefik). */
+    TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(1),
+    /** Build identifier (git SHA), set by the Docker image; reported by GET /api/v1/health. */
+    APP_VERSION: z.string().min(1).default("dev"),
     /** Ensure the first campaign, shops, templates and admin exist on boot (idempotent). */
     SEED_ON_BOOT: z
       .enum(["true", "false"])
@@ -81,7 +93,7 @@ const envSchema = z
     }
 
     // With an external cart the money is taken there, so the built-in gateway rules don't apply.
-    const internalPayments = env.COMMERCE_CONNECTOR === "internal";
+    const internalPayments = env.COMMERCE_CONNECTOR === "internal" && !env.ALLOW_MOCK_PAYMENTS;
     if (internalPayments && env.NODE_ENV === "production" && env.PAYMENT_GATEWAY === "mock") {
       ctx.addIssue({
         code: "custom",

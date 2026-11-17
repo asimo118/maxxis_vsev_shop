@@ -45,7 +45,19 @@ pnpm dev                      # api :4000、前台 :5173、後台 :5174（admin@
 
 指令：`pnpm db:migrate`、`pnpm db:seed`（可重複執行）、`pnpm db:backup`。
 
-## 部署（單台主機）
+## 部署
+
+**Docker / Portainer（建議）**：GitHub Actions 測試通過後把 image 推到 GHCR，Portainer 透過 webhook 自動更新。
+完整步驟見 [docs/deploy-portainer.md](docs/deploy-portainer.md)；環境變數範本為 `stack.env.example`。
+
+```
+Dockerfile              api 與 web（nginx）兩個 image
+docker-compose.yml      Portainer stack：web、api、每日備份
+.github/workflows/      CI/CD：測試 → 建 image → 整套 stack smoke test → 推 GHCR → 觸發 Portainer
+scripts/smoke-test.sh   對執行中的網站做端到端檢查（CI 與手動皆可用）
+```
+
+### 不用 Docker（單台主機）
 
 前後台是靜態檔，API 是一個 Node 程序加一個資料庫檔，一台 VM（1–2 vCPU / 2GB）即可。
 
@@ -105,6 +117,8 @@ admin.example.com {
 ```bash
 pnpm typecheck && pnpm test && pnpm lint && pnpm build
 ```
+
+每次 push 與 PR 都會在 GitHub Actions 自動跑上述檢查，再建 Docker image、啟動整套 stack 做 smoke test。
 
 API 測試（66 項）每一個情境都分別在 **memory 與 SQLite 兩種 driver** 上執行，確保行為一致：
 完整旅程、推薦碼、token audience 隔離、他人訂單隱藏、webhook 冪等、預約規則、逾期與提醒撤銷、RBAC、

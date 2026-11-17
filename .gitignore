@@ -12,3 +12,6 @@ backups/
 *.db
 *.db-wal
 *.db-shm
+
+# Real Portainer/Docker variables (template: stack.env.example)
+stack.env

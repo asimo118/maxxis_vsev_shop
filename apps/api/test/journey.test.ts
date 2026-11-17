@@ -132,7 +132,11 @@ describe.each(DRIVERS)("%s driver", (driver) => {
       expect(r.body.amountCents).toBe(SEED_CAMPAIGN.salePriceCents);
     });
 
-    it("separates storefront and admin token audiences", async () => {
+    it("reports health and build version", async () => {
+    expect((await request(t.app).get("/api/v1/health")).body).toEqual({ ok: true, version: "dev" });
+  });
+
+  it("separates storefront and admin token audiences", async () => {
       const u = await register("aud@example.com");
       const admin = await adminToken();
       expect((await request(t.app).get("/api/v1/admin/dashboard").set(auth(u))).status).toBe(401);

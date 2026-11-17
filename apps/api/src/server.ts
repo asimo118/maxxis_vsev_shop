@@ -8,6 +8,9 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger();
   const container = await createContainer(config, logger);
+  if (config.ALLOW_MOCK_PAYMENTS && config.COMMERCE_CONNECTOR === "internal") {
+    logger.warn("ALLOW_MOCK_PAYMENTS=true: every payment is auto-approved and no money moves. Staging/demo only.");
+  }
   // Pull external master data (vehicle models, shops) before anything depends on it. A failure is
   // logged and the last good local copy is used; the scheduled sync keeps retrying.
   for (const s of await container.connectors.syncAll()) {

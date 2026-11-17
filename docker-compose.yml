@@ -1,0 +1,101 @@
+# MAXXIS VSEV — Portainer stack (Git repository → this file).
+# Images are built and pushed to GHCR by GitHub Actions; Portainer only pulls and runs them.
+# Every ${VAR} is set in Portainer → Stack → Environment variables (template: stack.env.example).
+# Full guide: docs/deploy-portainer.md
+
+name: maxxis-vsev
+
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: "4000"
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATA_DRIVER: sqlite
+  SQLITE_PATH: /data/vsev.db
+  TRUST_PROXY: ${TRUST_PROXY:-1}
+  CORS_ORIGINS: ${CORS_ORIGINS:-}
+  # Required — the stack refuses to deploy without them.
+  JWT_SECRET_STOREFRONT: ${JWT_SECRET_STOREFRONT:?set JWT_SECRET_STOREFRONT (32+ random characters)}
+  JWT_SECRET_ADMIN: ${JWT_SECRET_ADMIN:?set JWT_SECRET_ADMIN (32+ random characters, different from the storefront one)}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD (first admin login)}
+  SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@vsev.local}
+  SEED_ON_BOOT: ${SEED_ON_BOOT:-true}
+  BCRYPT_COST: ${BCRYPT_COST:-10}
+  # Payments: an external cart (COMMERCE_CONNECTOR=http) or, for staging only, ALLOW_MOCK_PAYMENTS=true.
+  ALLOW_MOCK_PAYMENTS: ${ALLOW_MOCK_PAYMENTS:-false}
+  PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
+  # Connectors (docs/connectors.md)
+  VEHICLE_SOURCE: ${VEHICLE_SOURCE:-local}
+  VEHICLE_SOURCE_URL: ${VEHICLE_SOURCE_URL:-}
+  VEHICLE_SOURCE_TOKEN: ${VEHICLE_SOURCE_TOKEN:-}
+  SHOP_SOURCE: ${SHOP_SOURCE:-local}
+  SHOP_SOURCE_URL: ${SHOP_SOURCE_URL:-}
+  SHOP_SOURCE_TOKEN: ${SHOP_SOURCE_TOKEN:-}
+  CONNECTOR_SYNC_INTERVAL_MIN: ${CONNECTOR_SYNC_INTERVAL_MIN:-30}
+  CONNECTOR_TIMEOUT_MS: ${CONNECTOR_TIMEOUT_MS:-8000}
+  COMMERCE_CONNECTOR: ${COMMERCE_CONNECTOR:-internal}
+  COMMERCE_API_URL: ${COMMERCE_API_URL:-}
+  COMMERCE_API_TOKEN: ${COMMERCE_API_TOKEN:-}
+  COMMERCE_WEBHOOK_SECRET: ${COMMERCE_WEBHOOK_SECRET:-}
+  COMMERCE_RETURN_URL: ${COMMERCE_RETURN_URL:-http://localhost:8080/orders/{orderId}?from=checkout}
+  COMMERCE_SKU_MAP: ${COMMERCE_SKU_MAP:-{}}
+
+services:
+  api:
+    image: ${IMAGE_REGISTRY:-ghcr.io/asimo118/maxxis_vsev_shop}/api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment: *api-env
+    volumes:
+      - vsev-data:/data
+    expose:
+      - "4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  web:
+    image: ${IMAGE_REGISTRY:-ghcr.io/asimo118/maxxis_vsev_shop}/web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_UPSTREAM: api:4000
+    ports:
+      - "${STOREFRONT_PORT:-8080}:80"   # storefront (public)
+      - "${ADMIN_PORT:-8081}:8081"      # admin console — restrict access to this port
+    logging: *logging
+
+  # Daily online backup of the SQLite file into the same volume (/data/backups), keeping BACKUP_KEEP_DAYS.
+  # Copy /data/backups off this host as well (see docs/deploy-portainer.md).
+  backup:
+    image: ${IMAGE_REGISTRY:-ghcr.io/asimo118/maxxis_vsev_shop}/api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      <<: *api-env
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_INTERVAL_SEC: ${BACKUP_INTERVAL_SEC:-86400}
+    volumes:
+      - vsev-data:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          node dist/backup.mjs "/data/backups/vsev-$$(date -u +%Y%m%dT%H%M%SZ).db" \
+            && find /data/backups -name 'vsev-*.db' -mtime +"$$BACKUP_KEEP_DAYS" -delete
+          sleep "$$BACKUP_INTERVAL_SEC"
+        done
+    healthcheck:
+      disable: true
+    logging: *logging
+
+volumes:
+  vsev-data:

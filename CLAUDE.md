@@ -62,6 +62,15 @@ custom properties — use `var(--maxxis)` etc., never hard-coded hex values in a
 - Orders are always created and validated locally; an external cart only takes the payment.
   Commerce webhooks require an HMAC signature and a matching `externalRef`, and are idempotent per `eventId`.
 
+## Deployment (docs/deploy-portainer.md)
+
+- Images are built only by GitHub Actions and pushed to GHCR; Portainer pulls `docker-compose.yml` (no `build:` in it).
+  `docker-compose.build.yml` is the local/CI override that builds from source.
+- Every new env var must be added to the `x-api-env` block in `docker-compose.yml` and to `stack.env.example`.
+- The storefront port must never serve `/api/v1/admin/*`, and the admin port only serves `/api/v1/admin/*`
+  (`docker/nginx/default.conf.template`); `scripts/smoke-test.sh` checks both.
+- `/api/v1/health` reports `APP_VERSION` (the git SHA baked into the image); the deploy job waits for it.
+
 ## Commands
 
 ```

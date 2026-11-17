@@ -263,5 +263,8 @@ describe("connector configuration", () => {
     const prod = { ...baseEnv, NODE_ENV: "production", DATA_DRIVER: "sqlite" };
     expect(() => loadConfig(prod)).toThrow(/PAYMENT_GATEWAY/);
     expect(() => loadConfig({ ...prod, ...{ COMMERCE_CONNECTOR: "http", COMMERCE_API_URL: "https://x.test", COMMERCE_WEBHOOK_SECRET: "k" } })).not.toThrow();
+    // staging: explicit opt-in to the mock gateway
+    expect(() => loadConfig({ ...prod, ALLOW_MOCK_PAYMENTS: "true" })).not.toThrow();
+    expect(() => loadConfig({ ...prod, TRUST_PROXY: "9" })).toThrow(/TRUST_PROXY/);
   });
 });
