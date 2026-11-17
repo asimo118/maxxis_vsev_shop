@@ -1,0 +1,16 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+onlyBuiltDependencies:
+  - esbuild
+
+# better-sqlite3 ships prebuilt binaries for Linux/macOS/Windows (x64 + arm64) inside the package.
+# Building it would need a C++ toolchain and Node headers for no benefit, so skip its implicit node-gyp step.
+ignoredBuiltDependencies:
+  - better-sqlite3
+
+overrides:
+  react: 18.3.1
+  react-dom: 18.3.1
+  "@types/react": 18.3.31

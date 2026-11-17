@@ -1,0 +1,103 @@
+import type { AdminOrderDetailDto, BookingDto } from "@vsev/shared";
+import type { Clock } from "../../platform/clock";
+import { errors } from "../../platform/errors";
+import type { Logger } from "../../platform/logger";
+import type { OrderService } from "../order/order.service";
+import type { ShopNetworkService } from "../shop-network/shop-network.service";
+import type { BookingRecord, FulfillmentRepository } from "./fulfillment.repository";
+
+const toDto = (b: BookingRecord): BookingDto => ({
+  id: b.id,
+  orderId: b.orderId,
+  shopId: b.shopId,
+  slotAt: b.slotAt.toISOString(),
+  status: b.status
+});
+
+export interface FulfillmentServiceDeps {
+  repo: FulfillmentRepository;
+  orders: OrderService;
+  shops: ShopNetworkService;
+  clock: Clock;
+  logger: Logger;
+}
+
+/**
+ * Everything that happens between "paid" and "installed": shipping, arrival at the shop, the customer's
+ * booking, the install itself, and the nightly sweep that expires orders past the install deadline.
+ * It never writes order status directly — it asks OrderService.transition().
+ */
+export class FulfillmentService {
+  constructor(private readonly deps: FulfillmentServiceDeps) {}
+
+  async findByOrderId(orderId: string): Promise<BookingDto | null> {
+    const booking = await this.deps.repo.findByOrderId(orderId);
+    return booking && booking.status !== "cancelled" ? toDto(booking) : null;
+  }
+
+  /* ───── admin / shop-side reports ───── */
+
+  async ship(orderId: string, adminId: string): Promise<AdminOrderDetailDto> {
+    await this.deps.orders.transition(orderId, "shipped", `admin:${adminId}`);
+    return this.deps.orders.adminGet(orderId);
+  }
+
+  async markArrived(orderId: string, adminId: string): Promise<AdminOrderDetailDto> {
+    await this.deps.orders.transition(orderId, "arrived_at_shop", `admin:${adminId}`);
+    return this.deps.orders.adminGet(orderId);
+  }
+
+  /** Shop reports the install complete → installed → (auto) warranty_active → the Owner journey starts. */
+  async markInstalled(orderId: string, adminId: string): Promise<AdminOrderDetailDto> {
+    const order = await this.deps.orders.getById(orderId);
+    if (order.status !== "booked") throw errors.invalidTransition(order.status, "installed");
+    await this.deps.orders.transition(orderId, "installed", `admin:${adminId}`);
+    await this.deps.repo.setStatus(orderId, "completed");
+    return this.deps.orders.adminGet(orderId);
+  }
+
+  /* ───── customer booking ───── */
+
+  async book(userId: string, orderId: string, slotAtIso: string): Promise<BookingDto> {
+    const order = await this.deps.orders.getOwned(userId, orderId);
+    if (order.status !== "arrived_at_shop") throw errors.invalidTransition(order.status, "booked");
+
+    const slotAt = new Date(slotAtIso);
+    const now = this.deps.clock.now();
+    const withinDeadline = slotAt.getTime() <= order.installDeadline.getTime();
+    const openThen = await this.deps.shops.isShopOpenAt(order.shopId, slotAt);
+    if (slotAt.getTime() <= now.getTime() || !withinDeadline || !openThen) throw errors.bookingSlotInvalid();
+
+    const booking = await this.deps.repo.upsertReserved({ orderId, shopId: order.shopId, slotAt });
+    try {
+      await this.deps.orders.transition(orderId, "booked", `user:${userId}`, { slotAt });
+    } catch (err) {
+      await this.deps.repo.setStatus(orderId, "cancelled");
+      throw err;
+    }
+    return toDto(booking);
+  }
+
+  async cancelBooking(userId: string, orderId: string): Promise<void> {
+    const order = await this.deps.orders.getOwned(userId, orderId);
+    if (order.status !== "booked") throw errors.invalidTransition(order.status, "arrived_at_shop");
+    await this.deps.repo.setStatus(orderId, "cancelled");
+    await this.deps.orders.transition(orderId, "arrived_at_shop", `user:${userId}`, { note: "會員取消預約" });
+  }
+
+  /* ───── nightly sweep ───── */
+
+  /** Orders still open after their install deadline become `expired`. Safe to run repeatedly. */
+  async expireOverdue(): Promise<number> {
+    let expired = 0;
+    for (const order of await this.deps.orders.listOpenPastDeadline()) {
+      try {
+        await this.deps.orders.transition(order.id, "expired", "system", { note: "逾安裝期限" });
+        expired += 1;
+      } catch (err) {
+        this.deps.logger.warn({ err, orderId: order.id }, "could not expire overdue order");
+      }
+    }
+    return expired;
+  }
+}

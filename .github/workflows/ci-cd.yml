@@ -1,0 +1,182 @@
+name: CI/CD
+
+# Every push / PR: typecheck, lint, test, build, then build both images and smoke-test the real stack.
+# Push to main (after all of that passes): publish images to GHCR and trigger the Portainer stack webhook.
+# Setup: docs/deploy-portainer.md
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository }}
+  CAMPAIGN_SLUG: vs-ev-plus-bmw-ix2-2026q4
+
+jobs:
+  verify:
+    name: Typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  images:
+    name: Docker images + stack smoke test
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "version=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build api image (local, for testing)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api
+          load: true
+          tags: ${{ env.IMAGE_REGISTRY }}/api:ci
+          build-args: GIT_SHA=${{ steps.meta.outputs.version }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - name: Build web image (local, for testing)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          load: true
+          tags: ${{ env.IMAGE_REGISTRY }}/web:ci
+          build-args: |
+            GIT_SHA=${{ steps.meta.outputs.version }}
+            VITE_CAMPAIGN_SLUG=${{ env.CAMPAIGN_SLUG }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      - name: Start the stack exactly as Portainer runs it (docker-compose.yml)
+        env:
+          IMAGE_TAG: ci
+          JWT_SECRET_STOREFRONT: ci-storefront-secret-${{ github.run_id }}-0123456789abcdef
+          JWT_SECRET_ADMIN: ci-admin-secret-${{ github.run_id }}-fedcba9876543210
+          SEED_ADMIN_PASSWORD: Ci-Admin-${{ github.run_id }}
+          ALLOW_MOCK_PAYMENTS: "true"
+        run: docker compose -f docker-compose.yml up -d --wait --wait-timeout 120
+      - name: Smoke test through nginx
+        env:
+          ADMIN_PASSWORD: Ci-Admin-${{ github.run_id }}
+          EXPECT_VERSION: ${{ steps.meta.outputs.version }}
+          IMAGE_TAG: ci
+          JWT_SECRET_STOREFRONT: ci-storefront-secret-${{ github.run_id }}-0123456789abcdef
+          JWT_SECRET_ADMIN: ci-admin-secret-${{ github.run_id }}-fedcba9876543210
+          SEED_ADMIN_PASSWORD: Ci-Admin-${{ github.run_id }}
+          ALLOW_MOCK_PAYMENTS: "true"
+          COMPOSE: docker compose -f docker-compose.yml
+        run: scripts/smoke-test.sh
+      - name: Stack logs
+        if: always()
+        env:
+          IMAGE_TAG: ci
+          JWT_SECRET_STOREFRONT: x
+          JWT_SECRET_ADMIN: x
+          SEED_ADMIN_PASSWORD: x
+        run: |
+          docker compose -f docker-compose.yml ps
+          docker compose -f docker-compose.yml logs --no-color --tail 200
+          docker compose -f docker-compose.yml down -v
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish api image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: api
+          push: true
+          platforms: ${{ vars.IMAGE_PLATFORMS || 'linux/amd64' }}
+          tags: |
+            ${{ env.IMAGE_REGISTRY }}/api:latest
+            ${{ env.IMAGE_REGISTRY }}/api:sha-${{ steps.meta.outputs.version }}
+          build-args: GIT_SHA=${{ steps.meta.outputs.version }}
+          cache-from: type=gha,scope=api
+      - name: Publish web image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          push: true
+          platforms: ${{ vars.IMAGE_PLATFORMS || 'linux/amd64' }}
+          tags: |
+            ${{ env.IMAGE_REGISTRY }}/web:latest
+            ${{ env.IMAGE_REGISTRY }}/web:sha-${{ steps.meta.outputs.version }}
+          build-args: |
+            GIT_SHA=${{ steps.meta.outputs.version }}
+            VITE_CAMPAIGN_SLUG=${{ env.CAMPAIGN_SLUG }}
+          cache-from: type=gha,scope=web
+
+  deploy:
+    name: Deploy via Portainer
+    needs: images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Trigger the Portainer stack webhook
+        env:
+          WEBHOOK: ${{ secrets.PORTAINER_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::PORTAINER_WEBHOOK_URL is not set — images are published; redeploy the stack in Portainer manually."
+            exit 0
+          fi
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$WEBHOOK")
+          echo "Portainer answered HTTP $code"
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
+      - name: Wait for the new version to be live
+        env:
+          URL: ${{ vars.PUBLIC_STOREFRONT_URL }}
+          VERSION: ${{ needs.images.outputs.version }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "::notice::Set the PUBLIC_STOREFRONT_URL repository variable to verify deployments."
+            exit 0
+          fi
+          for i in $(seq 1 60); do
+            body=$(curl -fsS "$URL/api/v1/health" || true)
+            if grep -q "\"version\":\"$VERSION\"" <<<"$body"; then echo "live: $body"; exit 0; fi
+            echo "waiting ($i): ${body:-no answer}"; sleep 10
+          done
+          echo "::error::$URL did not report version $VERSION within 10 minutes"
+          exit 1

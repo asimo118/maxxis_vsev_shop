@@ -1,0 +1,23 @@
+# Build the images from this checkout instead of pulling them from GHCR — local testing and CI.
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+# (Portainer stacks should use the prebuilt images: it does not reliably rebuild on redeploy.)
+services:
+  api:
+    build:
+      context: .
+      target: api
+      args:
+        GIT_SHA: ${GIT_SHA:-local}
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        GIT_SHA: ${GIT_SHA:-local}
+        VITE_CAMPAIGN_SLUG: ${VITE_CAMPAIGN_SLUG:-vs-ev-plus-bmw-ix2-2026q4}
+  backup:
+    build:
+      context: .
+      target: api
+      args:
+        GIT_SHA: ${GIT_SHA:-local}

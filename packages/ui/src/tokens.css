@@ -1,0 +1,28 @@
+/* VSEV design tokens + base — light theme. Accent deepens (#F5741E → #E8650F) as backgrounds lighten. */
+:root{
+  --asphalt:#F4F6F8;
+  --carbon:#FFFFFF;
+  --carbon-2:#EFF2F5;
+  --edge:#E0E5EB;
+  --maxxis:#E8650F;
+  --maxxis-deep:#C85310;
+  --volt:#1B7FB8;
+  --ink:#1B222B;
+  --dim:#67717D;
+  --ok:#1F9D5B;
+  --danger:#D64545;
+  --radius:10px;
+  --disp:"Barlow Condensed","Noto Sans TC",sans-serif;
+  --body:"Noto Sans TC","Barlow",sans-serif;
+  --num:"Barlow","Noto Sans TC",sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{background:var(--asphalt);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--maxxis);outline-offset:2px}
+
+/* ── 胎紋分隔線（signature motif） */
+.tread{height:8px;background:repeating-linear-gradient(-58deg,transparent 0 9px,#CBD3DC 9px 12px);opacity:.8}

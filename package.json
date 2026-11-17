@@ -1,0 +1,33 @@
+{
+  "name": "maxxis-vsev",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MAXXIS VICTRA SPORT EV+ owner-exclusive campaign platform — storefront, admin console and modular-monolith API.",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @vsev/api --filter @vsev/storefront --filter @vsev/admin dev",
+    "dev:api": "pnpm --filter @vsev/api dev",
+    "dev:storefront": "pnpm --filter @vsev/storefront dev",
+    "dev:admin": "pnpm --filter @vsev/admin dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "db:seed": "pnpm --filter @vsev/api db:seed",
+    "start": "pnpm --filter @vsev/api start",
+    "db:migrate": "pnpm --filter @vsev/api db:migrate",
+    "db:backup": "pnpm --filter @vsev/api db:backup",
+    "mock:external": "pnpm --filter @vsev/api mock:external"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "globals": "^16.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.46.0"
+  }
+}
