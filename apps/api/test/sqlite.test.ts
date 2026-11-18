@@ -89,6 +89,31 @@ describe("SQLite schema", () => {
     db.close();
   });
 
+  it("upgrades a deployed v2 database with existing orders to v3 without losing data", () => {
+    const db = new Database(":memory:");
+    // What a server deployed before order management has: migrations 1–2 and some rows.
+    db.transaction(() => {
+      for (const sql of MIGRATIONS.slice(0, 2)) db.exec(sql);
+      db.pragma("user_version = 2");
+    })();
+    db.prepare(
+      `INSERT INTO orders (id, number, user_id, campaign_id, campaign_title, shop_id, shop_name, shop_address,
+         vehicle_model_id, vehicle_model_label, plate, amount_cents, status, install_deadline, created_at, updated_at)
+       VALUES ('o1', 'VSEV-1', 'u', 'c', 't', 's', 's', 'a', 'm', 'm', 'ABC-1234', 3280000, 'paid', 'x', 'x', 'x')`
+    ).run();
+    db.prepare(
+      `INSERT INTO order_events (id, order_id, from_status, to_status, actor, note, created_at)
+       VALUES ('e1', 'o1', 'created', 'paid', 'gateway', NULL, 'x')`
+    ).run();
+
+    expect(migrate(db)).toEqual({ from: 2, to: MIGRATIONS.length });
+    expect(db.prepare("SELECT status, tracking_number, cancel_requested_at FROM orders").get())
+      .toEqual({ status: "paid", tracking_number: null, cancel_requested_at: null });
+    expect(db.prepare("SELECT kind FROM order_events").get()).toEqual({ kind: "status" }); // old rows default
+    expect(() => db.prepare("UPDATE order_events SET kind = 'bogus'").run()).toThrow(/CHECK/);
+    db.close();
+  });
+
   it("refuses to run against a newer schema", () => {
     const db = new Database(":memory:");
     db.pragma(`user_version = ${MIGRATIONS.length + 1}`);

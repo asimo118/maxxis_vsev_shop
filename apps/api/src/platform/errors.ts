@@ -18,6 +18,7 @@ const HTTP_STATUS: Record<ErrorCode, number> = {
   E2010: 422,
   E2011: 422,
   E2012: 409,
+  E2013: 409,
   E5000: 500,
   E5001: 502
 };
@@ -56,6 +57,7 @@ export const errors = {
   installDeadlinePassed: () => new AppError(ERROR_CODES.INSTALL_DEADLINE_PASSED),
   insufficientPoints: () => new AppError(ERROR_CODES.INSUFFICIENT_POINTS),
   managedExternally: (message?: string) => new AppError(ERROR_CODES.MANAGED_EXTERNALLY, message),
+  orderLocked: (message?: string) => new AppError(ERROR_CODES.ORDER_LOCKED, message),
   connectorUnavailable: (connector: string) =>
     new AppError(ERROR_CODES.CONNECTOR_UNAVAILABLE, undefined, { connector })
 };

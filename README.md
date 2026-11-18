@@ -19,7 +19,30 @@ packages/ui       亮色 design tokens（tokens.css）、胎紋分隔線、共�
 **車型資料、安裝店家清單、購物車／結帳**都已預留外部連接器，可改由外部 API 提供；未設定時由本系統管理。
 規格與設定見 [docs/connectors.md](docs/connectors.md)。
 
-## 本機開發
+## 功能一覽
+
+**前台**（`apps/storefront`）
+
+| 頁面 | 內容 |
+|---|---|
+| `/` 活動首頁 | 價格、倒數、選車型＋選店＋確認期限才能購買（CTA gate）；規格與 FAQ 精簡版 |
+| `/spec` 產品規格 | 完整規格表、EV 特點、方案內容（內容由後台「產品規格」編輯） |
+| `/shops` 安裝據點 | 搜尋、地區篩選、只看營業中、營業日與時間、導航；「選這家訂購」帶回首頁並自動選好 |
+| `/faq` 常見問題 | 關鍵字搜尋、客服資訊（內容由後台編輯） |
+| `/orders`、`/orders/:id` 我的訂單 | 進度、物流單號、預約／改期／取消預約、出貨前換店、安裝前改車型車牌、取消或申請取消、完整紀錄 |
+
+**後台**（`apps/admin`）
+
+| 頁面 | 內容 |
+|---|---|
+| 訂單管理 | 依狀態分頁與數量、「取消申請」待辦、搜尋、店家篩選、分頁；訂單詳情只顯示當下可做的下一步（出貨＋物流單號、到店、完工、取消、退款），處理取消申請（同意＝退款／不同意＋回覆），代客修改，內部備註（客戶看不到） |
+| 產品規格 | 產品名稱、尺寸、方案內含、規格表、EV 特點、常見問題；可新增、排序、刪除，儲存即更新前台 |
+| 店家管理 | 新增／編輯（營業日、時間、電話、上架），新增時可直接加入活動；勾選活動據點 |
+
+**訂單可修改範圍**由 `packages/shared/src/order-rules.ts` 統一定義，前台、後台與 API 共用同一份規則：
+出貨前可換安裝店家；完成安裝前可改車型與車牌；未付款可直接取消；已付款可申請取消，由後台退款或回覆不同意。
+
+
 
 ```bash
 pnpm install
@@ -97,7 +120,7 @@ admin.example.com {
 | catalog | 活動頁內容、價格、期限；活動頁快取 `campaign:{slug}`，事件驅動失效 | `/campaigns/:slug`、`/admin/campaigns` |
 | vehicle | 車型資格、會員車輛 | `/vehicle-models`、`/me/vehicles` |
 | shop-network | 店家、營業時間、活動據點指派、覆蓋缺口 | `/coverage-requests`、`/admin/shops` |
-| order | 唯一的訂單狀態寫入者 `OrderService.transition()`（CAS + 稽核同一 transaction）；付款與 webhook（冪等） | `/orders`、`/payments/webhook` |
+| order | 唯一的訂單狀態寫入者 `OrderService.transition()`（CAS + 稽核同一 transaction）；付款與 webhook（冪等）；客戶修改、取消申請、後台代改、內部備註、物流資訊 | `/orders`、`/me/orders/:id`、`/admin/orders/summary` |
 | fulfillment | 出貨、到店、預約（營業時間＋期限檢查）、完工、每日逾期掃描 | `/orders/:id/booking`、`/admin/orders/:id/ship…` |
 | loyalty | 點數帳本（整數、(reason, refId) 唯一）、推薦碼（僅後端驗證） | `/me/points`、`/admin/points/adjust` |
 | notification | 範本、去重發送紀錄、安裝期限提醒（安裝或取消時撤銷） | `/admin/notifications/*` |

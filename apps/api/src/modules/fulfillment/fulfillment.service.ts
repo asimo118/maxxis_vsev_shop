@@ -1,10 +1,19 @@
-import type { AdminOrderDetailDto, BookingDto } from "@vsev/shared";
+import { orderRules, type AdminOrderDetailDto, type BookingDto, type ShipBody } from "@vsev/shared";
 import type { Clock } from "../../platform/clock";
 import { errors } from "../../platform/errors";
 import type { Logger } from "../../platform/logger";
 import type { OrderService } from "../order/order.service";
 import type { ShopNetworkService } from "../shop-network/shop-network.service";
 import type { BookingRecord, FulfillmentRepository } from "./fulfillment.repository";
+
+/**
+ * "2026/10/30 14:00" in Taipei time, for audit-trail text. Deliberately not toLocaleString: its output
+ * (e.g. thin-space separators) differs between ICU versions. Taiwan has no DST, so UTC+8 is exact.
+ */
+const fmtTaipei = (d: Date): string => {
+  const t = new Date(d.getTime() + 8 * 60 * 60 * 1000).toISOString();
+  return `${t.slice(0, 10).replaceAll("-", "/")} ${t.slice(11, 16)}`;
+};
 
 const toDto = (b: BookingRecord): BookingDto => ({
   id: b.id,
@@ -37,8 +46,8 @@ export class FulfillmentService {
 
   /* ───── admin / shop-side reports ───── */
 
-  async ship(orderId: string, adminId: string): Promise<AdminOrderDetailDto> {
-    await this.deps.orders.transition(orderId, "shipped", `admin:${adminId}`);
+  async ship(orderId: string, adminId: string, tracking: ShipBody = {}): Promise<AdminOrderDetailDto> {
+    await this.deps.orders.markShipped(orderId, `admin:${adminId}`, tracking);
     return this.deps.orders.adminGet(orderId);
   }
 
@@ -62,11 +71,7 @@ export class FulfillmentService {
     const order = await this.deps.orders.getOwned(userId, orderId);
     if (order.status !== "arrived_at_shop") throw errors.invalidTransition(order.status, "booked");
 
-    const slotAt = new Date(slotAtIso);
-    const now = this.deps.clock.now();
-    const withinDeadline = slotAt.getTime() <= order.installDeadline.getTime();
-    const openThen = await this.deps.shops.isShopOpenAt(order.shopId, slotAt);
-    if (slotAt.getTime() <= now.getTime() || !withinDeadline || !openThen) throw errors.bookingSlotInvalid();
+    const slotAt = await this.validSlot(order, slotAtIso);
 
     const booking = await this.deps.repo.upsertReserved({ orderId, shopId: order.shopId, slotAt });
     try {
@@ -76,6 +81,28 @@ export class FulfillmentService {
       throw err;
     }
     return toDto(booking);
+  }
+
+  /** Move an existing booking to another slot; the order stays "booked". */
+  async reschedule(userId: string, orderId: string, slotAtIso: string): Promise<BookingDto> {
+    const order = await this.deps.orders.getOwned(userId, orderId);
+    if (!orderRules.canChangeBooking({ status: order.status, cancelRequestedAt: null })) {
+      throw errors.orderLocked("目前沒有可以更改的預約。");
+    }
+    const slotAt = await this.validSlot(order, slotAtIso);
+    const booking = await this.deps.repo.upsertReserved({ orderId, shopId: order.shopId, slotAt });
+    await this.deps.orders.recordChange(orderId, `user:${userId}`, `預約改為 ${fmtTaipei(slotAt)}`);
+    return toDto(booking);
+  }
+
+  /** In the future, within the shop's opening hours, and before the install deadline. */
+  private async validSlot(order: { shopId: string; installDeadline: Date }, slotAtIso: string): Promise<Date> {
+    const slotAt = new Date(slotAtIso);
+    const now = this.deps.clock.now();
+    const withinDeadline = slotAt.getTime() <= order.installDeadline.getTime();
+    const openThen = await this.deps.shops.isShopOpenAt(order.shopId, slotAt);
+    if (slotAt.getTime() <= now.getTime() || !withinDeadline || !openThen) throw errors.bookingSlotInvalid();
+    return slotAt;
   }
 
   async cancelBooking(userId: string, orderId: string): Promise<void> {

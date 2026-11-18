@@ -35,3 +35,54 @@ table.t tr.click{cursor:pointer}table.t tr.click:hover{background:var(--carbon-2
 .row span:first-child{color:var(--dim)}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.toolbar input,.toolbar select{background:var(--carbon);border:1px solid var(--edge);border-radius:8px;padding:8px 10px;font-family:var(--body)}
 .link{color:var(--maxxis);background:none;border:none;font:inherit;padding:0;text-decoration:underline;cursor:pointer}
+
+/* ── Orders: tabs, pager, detail layout ─────────────────────────────── */
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tabs button{border:1px solid var(--edge);background:var(--carbon);border-radius:99px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--dim)}
+.tabs button.active{background:var(--maxxis);border-color:var(--maxxis);color:#fff;font-weight:700}
+.tabs button.warn:not(.active){border-color:var(--danger);color:var(--danger);font-weight:700}
+.tabs .count{display:inline-block;margin-left:6px;font-family:var(--num);font-weight:700;opacity:.85}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:13px;color:var(--dim)}
+.pager span{margin-right:auto}
+.pill.danger{background:rgba(214,69,69,.12);color:var(--danger)}
+.nowrap{white-space:nowrap}
+.notice{background:rgba(31,157,91,.1);color:var(--ok);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:14px}
+.detail-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:16px;align-items:start}
+@media(max-width:980px){.detail-grid{grid-template-columns:1fr}}
+.banner-warn{border-color:var(--danger)}
+.hint{font-size:12.5px;color:var(--dim);margin:6px 0 10px}
+.subform{border-top:1px solid var(--edge);margin-top:14px;padding-top:12px}
+.note-form{display:flex;gap:8px;margin-bottom:10px}
+.note-form input{flex:1;background:var(--carbon-2);border:1px solid var(--edge);border-radius:8px;padding:8px 10px;font-family:var(--body)}
+.timeline-list{list-style:none;margin:0;padding:0}
+.timeline-list li{display:grid;grid-template-columns:150px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--edge);font-size:13.5px}
+.timeline-list li.note{background:rgba(232,101,15,.05)}
+.timeline-list .when{color:var(--dim);font-family:var(--num);font-size:12.5px}
+.timeline-list .who{color:var(--dim);font-size:12px}
+.kind{display:inline-block;font-size:11px;font-weight:700;border-radius:4px;padding:0 6px;margin-right:6px;background:var(--carbon-2);color:var(--dim)}
+.kind.status{background:rgba(232,101,15,.12);color:var(--maxxis-deep)}
+.kind.note{background:rgba(214,69,69,.1);color:var(--danger)}
+
+/* ── Content editor / shop form ─────────────────────────────────────── */
+.rows-editor{display:flex;flex-direction:column;gap:8px}
+.rows-row{display:grid;grid-template-columns:28px 1fr auto;gap:8px;align-items:start}
+.rows-idx{font-family:var(--num);color:var(--dim);padding-top:9px;text-align:right}
+.rows-fields{display:grid;grid-template-columns:minmax(140px,1fr) 2fr;gap:8px}
+.rows-fields input,.rows-fields textarea{background:var(--carbon-2);border:1px solid var(--edge);border-radius:8px;padding:8px 10px;font-family:var(--body);font-size:14px;color:var(--ink);width:100%}
+.rows-tools{display:flex;gap:4px}
+.rows-tools button{border:1px solid var(--edge);background:var(--carbon);border-radius:6px;width:30px;height:34px;cursor:pointer}
+.rows-tools button:disabled{opacity:.35;cursor:default}
+@media(max-width:700px){.rows-fields{grid-template-columns:1fr}}
+.save-bar{position:sticky;bottom:0;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;background:var(--carbon);border:1px solid var(--edge);border-radius:var(--radius);padding:12px 16px;box-shadow:0 -4px 16px rgba(16,24,40,.06)}
+.save-bar .dirty{color:var(--maxxis-deep);font-weight:700;margin-right:auto;font-size:13.5px}
+.save-bar .saved{color:var(--ok);margin-right:auto;font-size:13.5px}
+.save-bar [role=alert]{margin-right:auto}
+.field .label{display:block;font-size:12.5px;color:var(--dim);margin-bottom:4px}
+.day-picker{display:flex;flex-wrap:wrap;gap:6px}
+.day-picker label{border:1px solid var(--edge);border-radius:8px;padding:6px 10px;font-size:13px;cursor:pointer;user-select:none}
+.day-picker label.on{border-color:var(--maxxis);background:rgba(232,101,15,.08);color:var(--maxxis-deep);font-weight:700}
+.day-picker input{position:absolute;opacity:0;pointer-events:none}
+.check-line{display:flex;gap:6px;align-items:center;font-size:13.5px;margin:6px 0}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.card-head h2{margin:0}
+.card-head input{background:var(--carbon-2);border:1px solid var(--edge);border-radius:8px;padding:7px 10px;font-family:var(--body);min-width:220px}

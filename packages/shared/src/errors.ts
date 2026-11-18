@@ -20,6 +20,7 @@ export const ERROR_CODES = {
   INSTALL_DEADLINE_PASSED: "E2010",
   INSUFFICIENT_POINTS: "E2011",
   MANAGED_EXTERNALLY: "E2012",
+  ORDER_LOCKED: "E2013",
   INTERNAL: "E5000",
   CONNECTOR_UNAVAILABLE: "E5001"
 } as const;
@@ -45,6 +46,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   E2010: "已超過安裝期限。",
   E2011: "點數餘額不足。",
   E2012: "這項資料由外部系統管理，請到來源系統修改。",
+  E2013: "目前的訂單狀態無法進行這項修改。",
   E5000: "系統發生錯誤，請稍後再試。",
   E5001: "外部系統暫時無法連線，請稍後再試。"
 };

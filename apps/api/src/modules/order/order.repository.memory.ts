@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { OPEN_FOR_INSTALL } from "@vsev/shared";
 import type { MemoryStore } from "../../platform/memory-store";
-import type { OrderRecord, OrderRepository } from "./order.repository";
+import type { OrderPatch, OrderRecord, OrderRepository } from "./order.repository";
+
+function applyPatch(order: OrderRecord, patch: OrderPatch): void {
+  for (const [key, value] of Object.entries(patch) as [keyof OrderPatch, OrderPatch[keyof OrderPatch]][]) {
+    if (value !== undefined) Object.assign(order, { [key]: value });
+  }
+}
 
 export function createMemoryOrderRepository(store: MemoryStore): OrderRepository {
   return {
@@ -12,6 +18,10 @@ export function createMemoryOrderRepository(store: MemoryStore): OrderRepository
         id: randomUUID(),
         status: "created",
         externalRef: null,
+        trackingCarrier: null,
+        trackingNumber: null,
+        cancelRequestedAt: null,
+        cancelReason: null,
         createdAt: now,
         updatedAt: now
       };
@@ -19,6 +29,7 @@ export function createMemoryOrderRepository(store: MemoryStore): OrderRepository
       store.orderEvents.push({
         id: randomUUID(),
         orderId: record.id,
+        kind: "status",
         from: null,
         to: "created",
         actor,
@@ -45,6 +56,7 @@ export function createMemoryOrderRepository(store: MemoryStore): OrderRepository
       const matched = store.orders
         .filter((o) => !filter.status || o.status === filter.status)
         .filter((o) => !filter.shopId || o.shopId === filter.shopId)
+        .filter((o) => filter.cancelRequested === undefined || (o.cancelRequestedAt !== null) === filter.cancelRequested)
         .filter((o) => {
           if (!q && !filter.userIds) return true;
           const textHit = q ? o.number.toLowerCase().includes(q) || o.plate.toLowerCase().includes(q) : false;
@@ -59,10 +71,12 @@ export function createMemoryOrderRepository(store: MemoryStore): OrderRepository
       const order = store.orders.find((o) => o.id === input.orderId);
       if (!order || order.status !== input.from) return null;
       order.status = input.to;
+      if (input.patch) applyPatch(order, input.patch);
       order.updatedAt = new Date();
       store.orderEvents.push({
         id: randomUUID(),
         orderId: order.id,
+        kind: "status",
         from: input.from,
         to: input.to,
         actor: input.actor,
@@ -70,6 +84,31 @@ export function createMemoryOrderRepository(store: MemoryStore): OrderRepository
         createdAt: order.updatedAt
       });
       return { ...order };
+    },
+    async applyChange(input) {
+      const order = store.orders.find((o) => o.id === input.orderId);
+      if (!order) return null;
+      applyPatch(order, input.patch);
+      order.updatedAt = new Date();
+      store.orderEvents.push({
+        id: randomUUID(),
+        orderId: order.id,
+        kind: input.kind,
+        from: order.status,
+        to: order.status,
+        actor: input.actor,
+        note: input.note,
+        createdAt: order.updatedAt
+      });
+      return { ...order };
+    },
+    async statusCounts() {
+      const counts = new Map<OrderRecord["status"], number>();
+      for (const o of store.orders) counts.set(o.status, (counts.get(o.status) ?? 0) + 1);
+      return {
+        byStatus: [...counts.entries()].map(([status, count]) => ({ status, count })),
+        cancelRequests: store.orders.filter((o) => o.cancelRequestedAt !== null).length
+      };
     },
     async events(orderId) {
       return store.orderEvents

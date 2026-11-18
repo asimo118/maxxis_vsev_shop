@@ -1,5 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { adminNoteBody, adminOrderQuery, commerceWebhookBody, createOrderBody, paymentWebhookBody } from "@vsev/shared";
+import {
+  adminCommentBody,
+  adminNoteBody,
+  adminOrderQuery,
+  adminUpdateOrderBody,
+  cancelRequestBody,
+  commerceWebhookBody,
+  createOrderBody,
+  paymentWebhookBody,
+  updateOrderBody
+} from "@vsev/shared";
 import { Router } from "express";
 import { errors } from "../../platform/errors";
 import { asyncHandler, param, parseWith } from "../../platform/http";
@@ -50,6 +60,33 @@ export function createOrderRouter(
     mw.requireUser,
     asyncHandler(async (req, res) => {
       res.json(await orders.getMine(userIdOf(req), param(req, "id")));
+    })
+  );
+
+  /** Customer edits: install shop, vehicle model, plate (within the shared order rules). */
+  router.patch(
+    "/me/orders/:id",
+    mw.requireUser,
+    asyncHandler(async (req, res) => {
+      res.json(await orders.updateMine(userIdOf(req), param(req, "id"), parseWith(updateOrderBody, req.body)));
+    })
+  );
+
+  /** Unpaid: cancels now. Paid: files a request an admin settles (refund or decline). */
+  router.post(
+    "/orders/:id/cancel-request",
+    mw.requireUser,
+    asyncHandler(async (req, res) => {
+      const { reason } = parseWith(cancelRequestBody, req.body);
+      res.json(await orders.requestCancel(userIdOf(req), param(req, "id"), reason));
+    })
+  );
+
+  router.delete(
+    "/orders/:id/cancel-request",
+    mw.requireUser,
+    asyncHandler(async (req, res) => {
+      res.json(await orders.withdrawCancelRequest(userIdOf(req), param(req, "id")));
     })
   );
 
@@ -124,10 +161,45 @@ export function createOrderAdminRouter(orders: OrderService, mw: AuthMiddleware)
     })
   );
 
+  // Must be registered before /orders/:id.
+  router.get(
+    "/orders/summary",
+    asyncHandler(async (_req, res) => {
+      res.json(await orders.adminSummary());
+    })
+  );
+
   router.get(
     "/orders/:id",
     asyncHandler(async (req, res) => {
       res.json(await orders.adminGet(param(req, "id")));
+    })
+  );
+
+  router.patch(
+    "/orders/:id",
+    mw.allow("operator", "manager"),
+    asyncHandler(async (req, res) => {
+      res.json(await orders.adminUpdate(param(req, "id"), adminOf(req).adminId, parseWith(adminUpdateOrderBody, req.body)));
+    })
+  );
+
+  /** Internal note (any admin role). Never shown to the customer. */
+  router.post(
+    "/orders/:id/notes",
+    asyncHandler(async (req, res) => {
+      const { note } = parseWith(adminCommentBody, req.body);
+      res.json(await orders.adminComment(param(req, "id"), adminOf(req).adminId, note));
+    })
+  );
+
+  /** Decline a cancellation request (approving it = refund). */
+  router.post(
+    "/orders/:id/cancel-request/dismiss",
+    mw.allow("finance", "manager"),
+    asyncHandler(async (req, res) => {
+      const { note } = parseWith(adminNoteBody, req.body ?? {});
+      res.json(await orders.adminDismissCancelRequest(param(req, "id"), adminOf(req).adminId, note));
     })
   );
 

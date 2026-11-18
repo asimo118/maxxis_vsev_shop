@@ -1,4 +1,4 @@
-import { bookingBody } from "@vsev/shared";
+import { bookingBody, shipBody } from "@vsev/shared";
 import { Router } from "express";
 import { asyncHandler, param, parseWith } from "../../platform/http";
 import { adminOf, userIdOf, type AuthMiddleware } from "../auth/auth.middleware";
@@ -13,6 +13,15 @@ export function createFulfillmentRouter(fulfillment: FulfillmentService, mw: Aut
     asyncHandler(async (req, res) => {
       const { slotAt } = parseWith(bookingBody, req.body);
       res.status(201).json(await fulfillment.book(userIdOf(req), param(req, "id"), slotAt));
+    })
+  );
+
+  router.put(
+    "/orders/:id/booking",
+    mw.requireUser,
+    asyncHandler(async (req, res) => {
+      const { slotAt } = parseWith(bookingBody, req.body);
+      res.json(await fulfillment.reschedule(userIdOf(req), param(req, "id"), slotAt));
     })
   );
 
@@ -36,7 +45,7 @@ export function createFulfillmentAdminRouter(fulfillment: FulfillmentService, mw
     "/orders/:id/ship",
     canReport,
     asyncHandler(async (req, res) => {
-      res.json(await fulfillment.ship(param(req, "id"), adminOf(req).adminId));
+      res.json(await fulfillment.ship(param(req, "id"), adminOf(req).adminId, parseWith(shipBody, req.body ?? {})));
     })
   );
 

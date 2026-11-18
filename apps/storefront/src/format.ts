@@ -23,3 +23,19 @@ export function sessionId(): string {
     return `s${Math.random().toString(36).slice(2, 14)}`;
   }
 }
+
+/** Who did it, in customer-facing words (audit actor ids are "user:…", "admin:…", "system", "gateway", "commerce"). */
+export function actorLabel(actor: string): string {
+  if (actor.startsWith("user:")) return "你";
+  if (actor.startsWith("admin:")) return "客服";
+  return "系統";
+}
+
+/** A Date → value for <input type="datetime-local"> in Taipei time (Taiwan has no DST). */
+export function toTaipeiLocalInput(iso: string): string {
+  return new Date(new Date(iso).getTime() + 8 * 3600e3).toISOString().slice(0, 16);
+}
+/** <input type="datetime-local"> value, read as Taipei time → UTC ISO string. */
+export function fromTaipeiLocalInput(value: string): string {
+  return new Date(`${value}:00+08:00`).toISOString();
+}

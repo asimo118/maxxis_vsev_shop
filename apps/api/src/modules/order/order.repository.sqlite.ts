@@ -1,7 +1,33 @@
 import { randomUUID } from "node:crypto";
-import { OPEN_FOR_INSTALL, type OrderStatus } from "@vsev/shared";
+import { OPEN_FOR_INSTALL, ORDER_STATUSES, type OrderEventKind, type OrderStatus } from "@vsev/shared";
 import { likeContains, nowIso, placeholders, toDate, type SqliteDb } from "../../platform/sqlite";
-import type { NewOrder, OrderEventRecord, OrderRecord, OrderRepository } from "./order.repository";
+import type { NewOrder, OrderEventRecord, OrderPatch, OrderRecord, OrderRepository } from "./order.repository";
+
+/** OrderPatch field → column. Status is deliberately absent: it only changes through applyTransition. */
+const PATCH_COLUMNS: Record<keyof OrderPatch, string> = {
+  shopId: "shop_id",
+  shopName: "shop_name",
+  shopAddress: "shop_address",
+  vehicleModelId: "vehicle_model_id",
+  vehicleModelLabel: "vehicle_model_label",
+  plate: "plate",
+  trackingCarrier: "tracking_carrier",
+  trackingNumber: "tracking_number",
+  cancelRequestedAt: "cancel_requested_at",
+  cancelReason: "cancel_reason"
+};
+
+function patchSql(patch: OrderPatch): { sets: string[]; values: (string | null)[] } {
+  const sets: string[] = [];
+  const values: (string | null)[] = [];
+  for (const [key, column] of Object.entries(PATCH_COLUMNS) as [keyof OrderPatch, string][]) {
+    const value = patch[key];
+    if (value === undefined) continue;
+    sets.push(`${column} = ?`);
+    values.push(value instanceof Date ? value.toISOString() : value);
+  }
+  return { sets, values };
+}
 
 interface OrderRow {
   id: string;
@@ -19,6 +45,10 @@ interface OrderRow {
   status: OrderStatus;
   referred_by_user_id: string | null;
   external_ref: string | null;
+  tracking_carrier: string | null;
+  tracking_number: string | null;
+  cancel_requested_at: string | null;
+  cancel_reason: string | null;
   install_deadline: string;
   created_at: string;
   updated_at: string;
@@ -26,6 +56,7 @@ interface OrderRow {
 interface EventRow {
   id: string;
   order_id: string;
+  kind: OrderEventKind;
   from_status: OrderStatus | null;
   to_status: OrderStatus;
   actor: string;
@@ -49,6 +80,10 @@ const toOrder = (r: OrderRow): OrderRecord => ({
   status: r.status,
   referredByUserId: r.referred_by_user_id,
   externalRef: r.external_ref,
+  trackingCarrier: r.tracking_carrier,
+  trackingNumber: r.tracking_number,
+  cancelRequestedAt: r.cancel_requested_at ? toDate(r.cancel_requested_at) : null,
+  cancelReason: r.cancel_reason,
   installDeadline: toDate(r.install_deadline),
   createdAt: toDate(r.created_at),
   updatedAt: toDate(r.updated_at)
@@ -56,6 +91,7 @@ const toOrder = (r: OrderRow): OrderRecord => ({
 const toEvent = (r: EventRow): OrderEventRecord => ({
   id: r.id,
   orderId: r.order_id,
+  kind: r.kind,
   from: r.from_status,
   to: r.to_status,
   actor: r.actor,
@@ -74,9 +110,20 @@ export function createSqliteOrderRepository(db: SqliteDb): OrderRepository {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created')
      RETURNING *`
   );
-  const insertEvent = db.prepare<[string, string, OrderStatus | null, OrderStatus, string, string | null, string]>(
-    `INSERT INTO order_events (id, order_id, from_status, to_status, actor, note, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  const insertEvent = db.prepare<[string, string, OrderEventKind, OrderStatus | null, OrderStatus, string, string | null, string]>(
+    `INSERT INTO order_events (id, order_id, kind, from_status, to_status, actor, note, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const applyPatch = (orderId: string, patch: OrderPatch, now: string): void => {
+    const { sets, values } = patchSql(patch);
+    if (sets.length === 0) return;
+    db.prepare<(string | null)[]>(`UPDATE orders SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`).run(...values, now, orderId);
+  };
+  const countByStatus = db.prepare<[], { status: OrderStatus; count: number }>(
+    "SELECT status, COUNT(*) AS count FROM orders GROUP BY status"
+  );
+  const countCancelRequests = db.prepare<[], { n: number }>(
+    "SELECT COUNT(*) AS n FROM orders WHERE cancel_requested_at IS NOT NULL"
   );
   const byId = db.prepare<[string], OrderRow>("SELECT * FROM orders WHERE id = ?");
   const numberExists = db.prepare<[string], { hit: number }>("SELECT 1 AS hit FROM orders WHERE number = ?");
@@ -109,17 +156,28 @@ export function createSqliteOrderRepository(db: SqliteDb): OrderRepository {
       order.referredByUserId, order.installDeadline.toISOString(), now, now
     );
     if (!row) throw new Error("insert orders returned no row");
-    insertEvent.run(randomUUID(), row.id, null, "created", actor, null, now);
+    insertEvent.run(randomUUID(), row.id, "status", null, "created", actor, null, now);
     return row;
   });
 
   const transition = db.transaction(
-    (orderId: string, from: OrderStatus, to: OrderStatus, actor: string, note: string | null): OrderRow | undefined => {
+    (orderId: string, from: OrderStatus, to: OrderStatus, actor: string, note: string | null, patch: OrderPatch): OrderRow | undefined => {
       const now = nowIso();
-      const row = cas.get(to, now, orderId, from);
-      if (!row) return undefined; // someone else moved it first — nothing written
-      insertEvent.run(randomUUID(), orderId, from, to, actor, note, now);
-      return row;
+      const moved = cas.get(to, now, orderId, from);
+      if (!moved) return undefined; // someone else moved it first — nothing written
+      applyPatch(orderId, patch, now);
+      insertEvent.run(randomUUID(), orderId, "status", from, to, actor, note, now);
+      return byId.get(orderId);
+    }
+  );
+  const change = db.transaction(
+    (orderId: string, patch: OrderPatch, kind: "change" | "note", actor: string, note: string): OrderRow | undefined => {
+      const current = byId.get(orderId);
+      if (!current) return undefined;
+      const now = nowIso();
+      applyPatch(orderId, patch, now);
+      insertEvent.run(randomUUID(), orderId, kind, current.status, current.status, actor, note, now);
+      return byId.get(orderId);
     }
   );
 
@@ -148,6 +206,9 @@ export function createSqliteOrderRepository(db: SqliteDb): OrderRepository {
         where.push("shop_id = ?");
         params.push(filter.shopId);
       }
+      if (filter.cancelRequested !== undefined) {
+        where.push(filter.cancelRequested ? "cancel_requested_at IS NOT NULL" : "cancel_requested_at IS NULL");
+      }
       const anyOf: string[] = [];
       if (filter.q) {
         const pattern = likeContains(filter.q);
@@ -170,8 +231,18 @@ export function createSqliteOrderRepository(db: SqliteDb): OrderRepository {
       return { items: items.map(toOrder), total: total?.n ?? 0 };
     },
     async applyTransition(input) {
-      const row = transition(input.orderId, input.from, input.to, input.actor, input.note);
+      const row = transition(input.orderId, input.from, input.to, input.actor, input.note, input.patch ?? {});
       return row ? toOrder(row) : null;
+    },
+    async applyChange(input) {
+      const row = change(input.orderId, input.patch, input.kind, input.actor, input.note);
+      return row ? toOrder(row) : null;
+    },
+    async statusCounts() {
+      return {
+        byStatus: countByStatus.all().filter((r) => ORDER_STATUSES.includes(r.status)),
+        cancelRequests: countCancelRequests.get()?.n ?? 0
+      };
     },
     async events(orderId) {
       return events.all(orderId).map(toEvent);

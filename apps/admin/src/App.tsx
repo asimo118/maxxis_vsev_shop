@@ -5,6 +5,7 @@ import { errorText } from "./api";
 import { useAdmin } from "./auth";
 import { CampaignsPage } from "./pages/CampaignsPage";
 import { ConnectorsPage } from "./pages/ConnectorsPage";
+import { ContentPage } from "./pages/ContentPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { OrderDetailPage, OrdersPage } from "./pages/OrdersPage";
@@ -36,7 +37,8 @@ function Login(): ReactElement {
 }
 
 const NAV: [string, string][] = [
-  ["/", "儀表板"], ["/orders", "訂單"], ["/shops", "店家與缺口"], ["/campaigns", "活動"], ["/notifications", "通知"], ["/owners", "車主與點數"], ["/connectors", "外部連接"]
+  ["/", "儀表板"], ["/orders", "訂單管理"], ["/content", "產品規格"], ["/shops", "店家管理"], ["/campaigns", "活動"],
+  ["/notifications", "通知"], ["/owners", "車主與點數"], ["/connectors", "外部連接"]
 ];
 
 export function App(): ReactElement {
@@ -57,6 +59,7 @@ export function App(): ReactElement {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/content" element={<ContentPage />} />
           <Route path="/shops" element={<ShopsPage />} />
           <Route path="/campaigns" element={<CampaignsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

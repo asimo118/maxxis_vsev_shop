@@ -1,10 +1,14 @@
 import { randomBytes } from "node:crypto";
 import {
+  ORDER_STATUSES,
   canTransition,
   orderEventName,
   type AdminOrderDetailDto,
   type AdminOrderQuery,
   type AdminOrderRowDto,
+  orderRules,
+  type AdminOrderSummaryDto,
+  type AdminUpdateOrderBody,
   type BookingDto,
   type CheckoutDto,
   type CommerceWebhookBody,
@@ -13,7 +17,9 @@ import {
   type OrderEventDto,
   type OrderEventPayload,
   type OrderStatus,
-  type Paged
+  type Paged,
+  type ShipBody,
+  type UpdateOrderBody
 } from "@vsev/shared";
 import { taipeiParts, type Clock } from "../../platform/clock";
 import { errors } from "../../platform/errors";
@@ -24,7 +30,7 @@ import type { LoyaltyService } from "../loyalty/loyalty.service";
 import type { ShopNetworkService } from "../shop-network/shop-network.service";
 import type { VehicleService } from "../vehicle/vehicle.service";
 import type { CommerceConnector } from "./commerce.port";
-import type { OrderEventRecord, OrderRecord, OrderRepository } from "./order.repository";
+import type { OrderEventRecord, OrderPatch, OrderRecord, OrderRepository } from "./order.repository";
 
 /** Port to the payment provider. Only a mock adapter ships — a real gateway must implement this interface. */
 export interface PaymentGateway {
@@ -65,8 +71,17 @@ const COMMERCE_TARGET = {
 
 const NUMBER_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
+/** A pending cancellation request is settled by these transitions. */
+const SETTLES_CANCEL_REQUEST: readonly OrderStatus[] = ["cancelled", "refunded", "installed"];
+
+const ruleInput = (o: OrderRecord) => ({
+  status: o.status,
+  cancelRequestedAt: o.cancelRequestedAt ? o.cancelRequestedAt.toISOString() : null
+});
+
 const toEventDto = (e: OrderEventRecord): OrderEventDto => ({
   id: e.id,
+  kind: e.kind,
   from: e.from,
   to: e.to,
   actor: e.actor,
@@ -120,9 +135,55 @@ export class OrderService {
   async getMine(userId: string, orderId: string): Promise<OrderDto> {
     const order = await this.getOwned(userId, orderId);
     return this.toDto(order, {
-      events: await this.deps.repo.events(orderId),
+      // Admin-only notes never leave the admin API.
+      events: (await this.deps.repo.events(orderId)).filter((e) => e.kind !== "note"),
       booking: await this.deps.bookings.findByOrderId(orderId)
     });
+  }
+
+  /** Customer edits (install shop, vehicle model, plate) — limited by the shared `orderRules`. */
+  async updateMine(userId: string, orderId: string, body: UpdateOrderBody): Promise<OrderDto> {
+    const order = await this.getOwned(userId, orderId);
+    await this.applyDetailChange(order, body, `user:${userId}`);
+    return this.getMine(userId, orderId);
+  }
+
+  /**
+   * Unpaid orders are cancelled immediately. Paid orders get a cancellation REQUEST that an admin settles
+   * (refund, or decline with a reason) — money never moves without a person deciding.
+   */
+  async requestCancel(userId: string, orderId: string, reason: string): Promise<OrderDto> {
+    const order = await this.getOwned(userId, orderId);
+    const rules = ruleInput(order);
+    if (orderRules.canCancel(rules)) {
+      await this.transition(orderId, "cancelled", `user:${userId}`, { note: reason });
+    } else if (orderRules.canRequestCancel(rules)) {
+      await this.deps.repo.applyChange({
+        orderId,
+        patch: { cancelRequestedAt: this.deps.clock.now(), cancelReason: reason },
+        kind: "change",
+        actor: `user:${userId}`,
+        note: `申請取消：${reason}`
+      });
+    } else if (order.cancelRequestedAt) {
+      throw errors.conflict("已送出取消申請，客服處理中。");
+    } else {
+      throw errors.orderLocked("此訂單已無法取消。如需協助請聯絡客服。");
+    }
+    return this.getMine(userId, orderId);
+  }
+
+  async withdrawCancelRequest(userId: string, orderId: string): Promise<OrderDto> {
+    const order = await this.getOwned(userId, orderId);
+    if (!orderRules.canWithdrawCancelRequest(ruleInput(order))) throw errors.orderLocked("沒有待處理的取消申請。");
+    await this.deps.repo.applyChange({
+      orderId,
+      patch: { cancelRequestedAt: null, cancelReason: null },
+      kind: "change",
+      actor: `user:${userId}`,
+      note: "撤回取消申請"
+    });
+    return this.getMine(userId, orderId);
   }
 
   /** Ownership check. A foreign order id looks exactly like a missing one. */
@@ -222,6 +283,13 @@ export class OrderService {
     return this.toDto(await this.transition(orderId, "cancelled", `user:${userId}`, { note: "會員取消未付款訂單" }));
   }
 
+  /** Audit trail for a detail change made by another module (e.g. fulfillment rescheduling a booking). */
+  async recordChange(orderId: string, actor: string, note: string): Promise<void> {
+    if (!(await this.deps.repo.applyChange({ orderId, patch: {}, kind: "change", actor, note }))) {
+      throw errors.notFound("找不到這筆訂單。");
+    }
+  }
+
   /* ───────────── the ONLY writer of order status ───────────── */
 
   /**
@@ -233,7 +301,7 @@ export class OrderService {
     orderId: string,
     to: OrderStatus,
     actor: string,
-    opts: { note?: string; slotAt?: Date } = {}
+    opts: { note?: string; slotAt?: Date; patch?: OrderPatch } = {}
   ): Promise<OrderRecord> {
     const order = await this.mustFind(orderId);
     if (!canTransition(order.status, to)) throw errors.invalidTransition(order.status, to);
@@ -241,12 +309,18 @@ export class OrderService {
       throw errors.installDeadlinePassed();
     }
 
+    const patch: OrderPatch = { ...opts.patch };
+    if (order.cancelRequestedAt && SETTLES_CANCEL_REQUEST.includes(to)) {
+      patch.cancelRequestedAt = null;
+      patch.cancelReason = null;
+    }
     const updated = await this.deps.repo.applyTransition({
       orderId,
       from: order.status,
       to,
       actor,
-      note: opts.note ?? null
+      note: opts.note ?? null,
+      patch
     });
     if (!updated) throw errors.conflict("訂單狀態剛被更新，請重新整理後再試。");
 
@@ -272,6 +346,7 @@ export class OrderService {
     const { items, total } = await this.deps.repo.search({
       status: query.status,
       shopId: query.shopId,
+      cancelRequested: query.cancelRequested,
       q: query.q,
       userIds: userIds && userIds.length > 0 ? userIds : undefined,
       page: query.page,
@@ -288,6 +363,7 @@ export class OrderService {
           id: o.id,
           number: o.number,
           status: o.status,
+          cancelRequested: o.cancelRequestedAt !== null,
           userId: o.userId,
           customerName: user?.name ?? "(已刪除)",
           customerEmail: user?.email ?? "",
@@ -319,6 +395,49 @@ export class OrderService {
     };
   }
 
+  async adminSummary(): Promise<AdminOrderSummaryDto> {
+    const { byStatus, cancelRequests } = await this.deps.repo.statusCounts();
+    const counts = Object.fromEntries(ORDER_STATUSES.map((s) => [s, 0])) as Record<OrderStatus, number>;
+    for (const row of byStatus) counts[row.status] = row.count;
+    return { byStatus: counts, total: byStatus.reduce((n, r) => n + r.count, 0), cancelRequests };
+  }
+
+  /** Admin edits on the customer's behalf (same rules as the customer) plus shipment tracking. */
+  async adminUpdate(orderId: string, adminId: string, body: AdminUpdateOrderBody): Promise<AdminOrderDetailDto> {
+    await this.applyDetailChange(await this.mustFind(orderId), body, `admin:${adminId}`);
+    return this.adminGet(orderId);
+  }
+
+  /** Internal comment — admins only; filtered out of every customer response. */
+  async adminComment(orderId: string, adminId: string, note: string): Promise<AdminOrderDetailDto> {
+    const done = await this.deps.repo.applyChange({ orderId, patch: {}, kind: "note", actor: `admin:${adminId}`, note });
+    if (!done) throw errors.notFound("找不到這筆訂單。");
+    return this.adminGet(orderId);
+  }
+
+  /** Decline a cancellation request; the reason is shown to the customer. (Approving = refund.) */
+  async adminDismissCancelRequest(orderId: string, adminId: string, note?: string): Promise<AdminOrderDetailDto> {
+    const order = await this.mustFind(orderId);
+    if (!order.cancelRequestedAt) throw errors.orderLocked("這筆訂單沒有待處理的取消申請。");
+    await this.deps.repo.applyChange({
+      orderId,
+      patch: { cancelRequestedAt: null, cancelReason: null },
+      kind: "change",
+      actor: `admin:${adminId}`,
+      note: note ? `取消申請未核准：${note}` : "取消申請未核准"
+    });
+    return this.adminGet(orderId);
+  }
+
+  /** "shipped", with the carrier / tracking number the customer will see. */
+  async markShipped(orderId: string, actor: string, tracking: ShipBody): Promise<OrderRecord> {
+    const patch: OrderPatch = {};
+    if (tracking.carrier !== undefined) patch.trackingCarrier = tracking.carrier;
+    if (tracking.trackingNumber !== undefined) patch.trackingNumber = tracking.trackingNumber;
+    const note = [tracking.carrier, tracking.trackingNumber].filter(Boolean).join(" ");
+    return this.transition(orderId, "shipped", actor, { patch, note: note || undefined });
+  }
+
   async adminCancel(orderId: string, adminId: string, note?: string): Promise<AdminOrderDetailDto> {
     await this.transition(orderId, "cancelled", `admin:${adminId}`, { note });
     return this.adminGet(orderId);
@@ -331,6 +450,51 @@ export class OrderService {
   }
 
   /* ───────────── helpers ───────────── */
+
+  /**
+   * Validates and applies detail edits (never status) with one audit row describing every change.
+   * Each field is checked against the shared `orderRules`, and new values are validated like a new order:
+   * the shop must be active in the order's campaign, the model eligible for it.
+   */
+  private async applyDetailChange(order: OrderRecord, body: AdminUpdateOrderBody, actor: string): Promise<void> {
+    const rules = ruleInput(order);
+    const patch: OrderPatch = {};
+    const notes: string[] = [];
+
+    if (body.shopId !== undefined && body.shopId !== order.shopId) {
+      if (!orderRules.canChangeShop(rules)) throw errors.orderLocked("輪胎已出貨，無法更換安裝店家。如需協助請聯絡客服。");
+      const shop = await this.deps.shops.assertAvailable(order.campaignId, body.shopId);
+      Object.assign(patch, { shopId: shop.id, shopName: shop.name, shopAddress: shop.address });
+      notes.push(`安裝店家：${order.shopName} → ${shop.name}`);
+    }
+    if (body.vehicleModelId !== undefined && body.vehicleModelId !== order.vehicleModelId) {
+      if (!orderRules.canChangeVehicle(rules)) throw errors.orderLocked("已完成安裝，無法修改車型。");
+      const campaign = await this.deps.catalog.getById(order.campaignId);
+      if (!campaign) throw errors.notFound("找不到這檔活動。");
+      const model = await this.deps.vehicles.resolveEligibleModel(campaign.eligibleModelIds, body.vehicleModelId);
+      Object.assign(patch, { vehicleModelId: model.id, vehicleModelLabel: model.label });
+      notes.push(`車型：${order.vehicleModelLabel} → ${model.label}`);
+    }
+    if (body.plate !== undefined && body.plate !== order.plate) {
+      if (!orderRules.canChangeVehicle(rules)) throw errors.orderLocked("已完成安裝，無法修改車牌。");
+      patch.plate = body.plate;
+      notes.push(`車牌：${order.plate} → ${body.plate}`);
+    }
+    const carrierChanged = body.carrier !== undefined && body.carrier !== order.trackingCarrier;
+    const numberChanged = body.trackingNumber !== undefined && body.trackingNumber !== order.trackingNumber;
+    if (carrierChanged || numberChanged) {
+      if (!orderRules.canEditTracking(rules)) throw errors.orderLocked("出貨後才能填寫物流資訊。");
+      if (carrierChanged) patch.trackingCarrier = body.carrier;
+      if (numberChanged) patch.trackingNumber = body.trackingNumber;
+      notes.push(`物流：${[body.carrier ?? order.trackingCarrier, body.trackingNumber ?? order.trackingNumber].filter(Boolean).join(" ")}`);
+    }
+    if (notes.length === 0) return; // nothing actually changed
+
+    if (patch.vehicleModelId !== undefined || patch.plate !== undefined) {
+      await this.deps.vehicles.registerForOrder(order.userId, patch.vehicleModelId ?? order.vehicleModelId, patch.plate ?? order.plate);
+    }
+    await this.deps.repo.applyChange({ orderId: order.id, patch, kind: "change", actor, note: notes.join("；") });
+  }
 
   private async mustFind(orderId: string): Promise<OrderRecord> {
     const order = await this.deps.repo.findById(orderId);
@@ -382,8 +546,17 @@ export class OrderService {
       shopId: order.shopId,
       shopName: order.shopName,
       shopAddress: order.shopAddress,
+      vehicleModelId: order.vehicleModelId,
       vehicleModelLabel: order.vehicleModelLabel,
       plate: order.plate,
+      shipment:
+        order.trackingCarrier || order.trackingNumber
+          ? { carrier: order.trackingCarrier, trackingNumber: order.trackingNumber }
+          : null,
+      cancelRequest:
+        order.cancelRequestedAt && order.cancelReason
+          ? { reason: order.cancelReason, requestedAt: order.cancelRequestedAt.toISOString() }
+          : null,
       installDeadline: order.installDeadline.toISOString(),
       createdAt: order.createdAt.toISOString(),
       booking: extra.booking ?? null,

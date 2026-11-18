@@ -23,3 +23,15 @@ export function createVehicleRouter(vehicles: VehicleService, mw: AuthMiddleware
 
   return router;
 }
+
+/** Admin: the same model list, reachable through the admin port (which only serves /api/v1/admin/*). */
+export function createVehicleAdminRouter(vehicles: VehicleService): Router {
+  const router = Router();
+  router.get(
+    "/vehicle-models",
+    asyncHandler(async (_req, res) => {
+      res.json(await vehicles.listModels());
+    })
+  );
+  return router;
+}
