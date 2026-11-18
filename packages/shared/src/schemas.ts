@@ -176,6 +176,25 @@ export type CloneCampaignBody = z.infer<typeof cloneCampaignBody>;
 export const assignShopsBody = z.object({ shopIds: z.array(z.string()) });
 export type AssignShopsBody = z.infer<typeof assignShopsBody>;
 
+/** A campaign's allow-list of vehicle models (admin → 車型資料 → 活動資格). */
+export const eligibleModelsBody = z.object({ modelIds: z.array(z.string().min(1)).min(1, "活動至少要有一個適用車型。") });
+export type EligibleModelsBody = z.infer<typeof eligibleModelsBody>;
+
+/** Vehicle-model ids are permanent: orders and owner vehicles reference them. */
+export const vehicleModelId = z
+  .string()
+  .max(40)
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, "代碼只能用小寫英文、數字與連字號，例如 m-ix2-xdrive30");
+
+export const vehicleModelUpdateBody = z.object({
+  label: z.string().trim().min(1).max(60),
+  active: z.boolean().default(true)
+});
+export type VehicleModelUpdateBody = z.infer<typeof vehicleModelUpdateBody>;
+
+export const vehicleModelCreateBody = vehicleModelUpdateBody.extend({ id: vehicleModelId });
+export type VehicleModelCreateBody = z.infer<typeof vehicleModelCreateBody>;
+
 export const adjustPointsBody = z.object({
   userId: z.string().min(1),
   delta: z.number().int().refine((n) => n !== 0, "delta must not be 0"),
@@ -253,6 +272,12 @@ export interface AuthResultDto<T> {
 export interface VehicleModelDto {
   id: string;
   label: string;
+}
+
+/** Admin view: includes inactive models and how many owner vehicles are registered to each. */
+export interface AdminVehicleModelDto extends VehicleModelDto {
+  active: boolean;
+  ownerVehicles: number;
 }
 
 export interface ShopDto {

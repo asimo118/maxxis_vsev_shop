@@ -11,6 +11,7 @@ import {
   type OrderStatus,
   type Paged,
   type ShopDto,
+  type AdminVehicleModelDto,
   type VehicleModelDto
 } from "@vsev/shared";
 import { ErrorNote, Spinner } from "@vsev/ui";
@@ -355,10 +356,11 @@ function EditCard(props: { order: AdminOrderDetailDto; busy: boolean; onSave: (b
     void Promise.all([
       api.get<AdminCampaignDetailDto>(`/campaigns/${order.campaignId}`),
       api.get<ShopDto[]>("/shops"),
-      api.get<VehicleModelDto[]>("/vehicle-models")
+      api.get<AdminVehicleModelDto[]>("/vehicle-models")
     ]).then(([campaign, allShops, allModels]) => {
       setShops(allShops.filter((s) => s.active && campaign.shopIds.includes(s.id)));
-      setModels(allModels.filter((m) => campaign.eligibleModelIds.includes(m.id)));
+      // Keep the order's current model listed even if it was deactivated since, so the select shows it.
+      setModels(allModels.filter((m) => m.id === order.vehicleModelId || (m.active && campaign.eligibleModelIds.includes(m.id))));
     }).catch(() => undefined);
   }, [open, order.campaignId]);
 

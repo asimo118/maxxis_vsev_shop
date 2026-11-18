@@ -22,4 +22,6 @@ export interface VehicleRepository {
   upsertModel(model: { id: string; label: string; active?: boolean }): Promise<void>;
   upsertUserVehicle(userId: string, modelId: string, plate: string): Promise<UserVehicleRecord>;
   listUserVehicles(userId: string): Promise<UserVehicleRecord[]>;
+  /** Owner vehicles registered per model id (models with none are absent). */
+  countUserVehiclesByModel(): Promise<Record<string, number>>;
 }

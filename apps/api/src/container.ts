@@ -187,7 +187,7 @@ export async function createContainer(
 
   const auth = new AuthService({ repo: repos.auth, tokens, bcryptCost: config.BCRYPT_COST });
   const middleware = createAuthMiddleware(tokens, auth);
-  const vehicles = new VehicleService(repos.vehicle);
+  const vehicles = new VehicleService(repos.vehicle, { events, managedExternally: config.VEHICLE_SOURCE === "http" });
   const shops = new ShopNetworkService({
     repo: repos.shops,
     clock,

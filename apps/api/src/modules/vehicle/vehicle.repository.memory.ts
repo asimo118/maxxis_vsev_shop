@@ -33,6 +33,11 @@ export function createMemoryVehicleRepository(store: MemoryStore): VehicleReposi
     },
     async listUserVehicles(userId) {
       return store.userVehicles.filter((v) => v.userId === userId);
+    },
+    async countUserVehiclesByModel() {
+      const counts: Record<string, number> = {};
+      for (const v of store.userVehicles) counts[v.modelId] = (counts[v.modelId] ?? 0) + 1;
+      return counts;
     }
   };
 }

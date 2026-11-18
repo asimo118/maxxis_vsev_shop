@@ -71,7 +71,7 @@ export function createApp(c: Container): Express {
   admin.use(createOrderAdminRouter(c.orders, mw));
   admin.use(createFulfillmentAdminRouter(c.fulfillment, mw));
   admin.use(createShopNetworkAdminRouter(c.shops, mw));
-  admin.use(createVehicleAdminRouter(c.vehicles));
+  admin.use(createVehicleAdminRouter(c.vehicles, mw));
   admin.use(createCatalogAdminRouter(c.catalog, mw));
   admin.use(createNotificationAdminRouter(c.notifications, mw));
   admin.use(createLoyaltyAdminRouter(c.loyalty, mw));
