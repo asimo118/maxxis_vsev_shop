@@ -13,8 +13,12 @@ import type { Container } from "./container";
  */
 export async function seed(c: Container, opts: { adminEmail: string; adminPassword: string }): Promise<void> {
   // Master data from an external system (connector in "http" mode) is never overwritten by seed data.
+  // Insert-only: edits made in admin → 車型資料 (renames, deactivation) must survive every reboot.
   if (c.config.VEHICLE_SOURCE === "local") {
-    for (const m of SEED_VEHICLE_MODELS) await c.repos.vehicle.upsertModel({ id: m.id, label: m.label });
+    const existingModels = new Set((await c.repos.vehicle.listAllModels()).map((m) => m.id));
+    for (const m of SEED_VEHICLE_MODELS) {
+      if (!existingModels.has(m.id)) await c.repos.vehicle.upsertModel({ id: m.id, label: m.label });
+    }
   }
   if (c.config.SHOP_SOURCE === "local") {
     const existingShops = new Set((await c.repos.shops.listAll()).map((s) => s.id));

@@ -11,6 +11,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { OrderDetailPage, OrdersPage } from "./pages/OrdersPage";
 import { OwnersPage } from "./pages/OwnersPage";
 import { ShopsPage } from "./pages/ShopsPage";
+import { VehiclesPage } from "./pages/VehiclesPage";
 
 function Login(): ReactElement {
   const { login } = useAdmin();
@@ -37,7 +38,7 @@ function Login(): ReactElement {
 }
 
 const NAV: [string, string][] = [
-  ["/", "儀表板"], ["/orders", "訂單管理"], ["/content", "產品規格"], ["/shops", "店家管理"], ["/campaigns", "活動"],
+  ["/", "儀表板"], ["/orders", "訂單管理"], ["/content", "產品規格"], ["/shops", "店家管理"], ["/vehicles", "車型資料"], ["/campaigns", "活動"],
   ["/notifications", "通知"], ["/owners", "車主與點數"], ["/connectors", "外部連接"]
 ];
 
@@ -61,6 +62,7 @@ export function App(): ReactElement {
           <Route path="/orders/:id" element={<OrderDetailPage />} />
           <Route path="/content" element={<ContentPage />} />
           <Route path="/shops" element={<ShopsPage />} />
+          <Route path="/vehicles" element={<VehiclesPage />} />
           <Route path="/campaigns" element={<CampaignsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/owners" element={<OwnersPage />} />

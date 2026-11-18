@@ -39,6 +39,8 @@ export type DomainEventMap = {
   "campaign.shops_changed": { campaignId: string };
   /** shop-network → catalog: a shop's details/active flag changed ("*" = a whole connector sync), drop all cached pages. */
   "shop.changed": { shopId: string };
+  /** vehicle → catalog: a model's label/active flag changed ("*" = a whole connector sync), drop all cached pages. */
+  "vehicle_model.changed": { modelId: string };
 };
 
 export type DomainEventName = keyof DomainEventMap;

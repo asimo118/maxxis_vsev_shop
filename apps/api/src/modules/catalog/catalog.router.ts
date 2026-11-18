@@ -1,4 +1,4 @@
-import { REGIONS, campaignUpsertBody, cloneCampaignBody } from "@vsev/shared";
+import { REGIONS, campaignUpsertBody, cloneCampaignBody, eligibleModelsBody } from "@vsev/shared";
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, param, parseWith } from "../../platform/http";
@@ -60,6 +60,15 @@ export function createCatalogAdminRouter(catalog: CatalogService, mw: AuthMiddle
     canEdit,
     asyncHandler(async (req, res) => {
       res.json(await catalog.update(param(req, "id"), parseWith(campaignUpsertBody, req.body)));
+    })
+  );
+
+  router.put(
+    "/campaigns/:id/eligible-models",
+    canEdit,
+    asyncHandler(async (req, res) => {
+      const { modelIds } = parseWith(eligibleModelsBody, req.body);
+      res.json(await catalog.setEligibleModels(param(req, "id"), modelIds));
     })
   );
 

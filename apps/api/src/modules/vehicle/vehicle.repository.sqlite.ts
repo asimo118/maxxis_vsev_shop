@@ -39,6 +39,9 @@ export function createSqliteVehicleRepository(db: SqliteDb): VehicleRepository {
   const listUserVehicles = db.prepare<[string], UserVehicleRow>(
     "SELECT * FROM user_vehicles WHERE user_id = ? ORDER BY created_at, rowid"
   );
+  const countByModel = db.prepare<[], { model_id: string; n: number }>(
+    "SELECT model_id, COUNT(*) AS n FROM user_vehicles GROUP BY model_id"
+  );
 
   return {
     async listModels() {
@@ -64,6 +67,9 @@ export function createSqliteVehicleRepository(db: SqliteDb): VehicleRepository {
     },
     async listUserVehicles(userId) {
       return listUserVehicles.all(userId).map(toUserVehicle);
+    },
+    async countUserVehiclesByModel() {
+      return Object.fromEntries(countByModel.all().map((r) => [r.model_id, r.n]));
     }
   };
 }

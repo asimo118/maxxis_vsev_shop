@@ -129,6 +129,18 @@ export class CatalogService {
     return this.toDetail(updated);
   }
 
+  /** Replace only the campaign's eligible-model allow-list (order = storefront dropdown order). */
+  async setEligibleModels(id: string, modelIds: readonly string[]): Promise<AdminCampaignDetailDto> {
+    await this.mustFind(id);
+    const ids = [...new Set(modelIds)];
+    await this.assertKnownModels(ids);
+    const updated = await this.deps.repo.update(id, { eligibleModelIds: ids });
+    if (!updated) throw errors.notFound();
+    await this.invalidate(updated);
+    await this.deps.events.publish("campaign.updated", { campaignId: updated.id, slug: updated.slug });
+    return this.toDetail(updated);
+  }
+
   async publish(id: string): Promise<AdminCampaignDetailDto> {
     const campaign = await this.mustFind(id);
     if (campaign.status === "live") return this.toDetail(campaign);
@@ -206,8 +218,16 @@ export class CatalogService {
     if (body.salePriceCents > body.listPriceCents) {
       throw errors.validation({ path: "salePriceCents", message: "活動價不可高於原價。" });
     }
-    const found = await this.deps.vehicles.listModelsByIds(body.eligibleModelIds);
-    if (found.length !== new Set(body.eligibleModelIds).size) {
+    await this.assertKnownModels(body.eligibleModelIds);
+  }
+
+  /**
+   * Existence, not "active": a model deactivated in 車型資料 may stay on a campaign's allow-list
+   * (the storefront and checkout already skip inactive models), so editing the campaign still works.
+   */
+  private async assertKnownModels(ids: readonly string[]): Promise<void> {
+    const known = await this.deps.vehicles.knownIds(ids);
+    if (known.size !== new Set(ids).size) {
       throw errors.validation({ path: "eligibleModelIds", message: "包含不存在的車型。" });
     }
   }
