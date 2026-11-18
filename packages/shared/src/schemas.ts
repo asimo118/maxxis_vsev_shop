@@ -57,6 +57,23 @@ export const createOrderBody = z.object({
 });
 export type CreateOrderBody = z.infer<typeof createOrderBody>;
 
+/** Customer (or admin on the customer's behalf) changes to an order. At least one field. */
+export const updateOrderBody = z
+  .object({
+    shopId: z.string().min(1).optional(),
+    vehicleModelId: z.string().min(1).optional(),
+    plate: plateSchema.optional()
+  })
+  .refine((b) => b.shopId !== undefined || b.vehicleModelId !== undefined || b.plate !== undefined, {
+    message: "nothing to change"
+  });
+export type UpdateOrderBody = z.infer<typeof updateOrderBody>;
+
+export const cancelRequestBody = z.object({
+  reason: z.string().trim().min(2, "請說明取消原因").max(300)
+});
+export type CancelRequestBody = z.infer<typeof cancelRequestBody>;
+
 export const bookingBody = z.object({
   slotAt: z.string().datetime()
 });
@@ -176,6 +193,11 @@ export type TemplateUpdateBody = z.infer<typeof templateUpdateBody>;
 export const adminOrderQuery = z.object({
   status: z.enum(ORDER_STATUSES).optional(),
   shopId: z.string().optional(),
+  /** "true" = only orders with an open cancellation request. */
+  cancelRequested: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
   q: z.string().trim().max(60).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20)
@@ -183,6 +205,29 @@ export const adminOrderQuery = z.object({
 export type AdminOrderQuery = z.infer<typeof adminOrderQuery>;
 
 export const adminNoteBody = z.object({ note: z.string().trim().max(200).optional() });
+
+/** Internal comment on an order — visible to admins only, never to the customer. */
+export const adminCommentBody = z.object({ note: z.string().trim().min(1).max(500) });
+export type AdminCommentBody = z.infer<typeof adminCommentBody>;
+
+const trackingFields = {
+  carrier: z.string().trim().min(1).max(40).optional(),
+  trackingNumber: z.string().trim().min(1).max(60).optional()
+};
+/** Mark shipped, optionally with the carrier and tracking number shown to the customer. */
+export const shipBody = z.object(trackingFields);
+export type ShipBody = z.infer<typeof shipBody>;
+
+/** Admin edits: the customer-editable fields plus shipment tracking. */
+export const adminUpdateOrderBody = z
+  .object({
+    shopId: z.string().min(1).optional(),
+    vehicleModelId: z.string().min(1).optional(),
+    plate: plateSchema.optional(),
+    ...trackingFields
+  })
+  .refine((b) => Object.values(b).some((v) => v !== undefined), { message: "nothing to change" });
+export type AdminUpdateOrderBody = z.infer<typeof adminUpdateOrderBody>;
 
 /* ───────────────────────── response DTOs ───────────────────────── */
 
@@ -246,6 +291,8 @@ export interface CampaignPageDto {
 
 export interface OrderEventDto {
   id: string;
+  /** status = a status transition; change = details edited (shop, plate, booking, cancel request…); note = admin-only comment. */
+  kind: OrderEventKind;
   from: OrderStatus | null;
   to: OrderStatus;
   actor: string;
@@ -261,6 +308,9 @@ export interface BookingDto {
   status: BookingStatus;
 }
 
+export const ORDER_EVENT_KINDS = ["status", "change", "note"] as const;
+export type OrderEventKind = (typeof ORDER_EVENT_KINDS)[number];
+
 export interface OrderDto {
   id: string;
   number: string;
@@ -271,8 +321,11 @@ export interface OrderDto {
   shopId: string;
   shopName: string;
   shopAddress: string;
+  vehicleModelId: string;
   vehicleModelLabel: string;
   plate: string;
+  shipment: { carrier: string | null; trackingNumber: string | null } | null;
+  cancelRequest: { reason: string; requestedAt: string } | null;
   installDeadline: string;
   createdAt: string;
   booking: BookingDto | null;
@@ -288,10 +341,19 @@ export interface AdminOrderDetailDto extends OrderDto {
   externalRef: string | null;
 }
 
+export interface AdminOrderSummaryDto {
+  /** Orders per status (statuses with no orders are 0). */
+  byStatus: Record<OrderStatus, number>;
+  total: number;
+  /** Orders with an open cancellation request — the admin's to-do list. */
+  cancelRequests: number;
+}
+
 export interface AdminOrderRowDto {
   id: string;
   number: string;
   status: OrderStatus;
+  cancelRequested: boolean;
   userId: string;
   customerName: string;
   customerEmail: string;

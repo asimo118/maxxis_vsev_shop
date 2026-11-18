@@ -14,7 +14,7 @@ import { createNotificationAdminRouter } from "./modules/notification/notificati
 import { createOrderAdminRouter, createOrderRouter } from "./modules/order/order.router";
 import { createReportingAdminRouter, createTrackingRouter } from "./modules/reporting/reporting.router";
 import { createShopNetworkAdminRouter, createShopNetworkRouter } from "./modules/shop-network/shop-network.router";
-import { createVehicleRouter } from "./modules/vehicle/vehicle.router";
+import { createVehicleAdminRouter, createVehicleRouter } from "./modules/vehicle/vehicle.router";
 import { createConnectorsAdminRouter } from "./connectors/connectors.router";
 
 export function createApp(c: Container): Express {
@@ -71,6 +71,7 @@ export function createApp(c: Container): Express {
   admin.use(createOrderAdminRouter(c.orders, mw));
   admin.use(createFulfillmentAdminRouter(c.fulfillment, mw));
   admin.use(createShopNetworkAdminRouter(c.shops, mw));
+  admin.use(createVehicleAdminRouter(c.vehicles));
   admin.use(createCatalogAdminRouter(c.catalog, mw));
   admin.use(createNotificationAdminRouter(c.notifications, mw));
   admin.use(createLoyaltyAdminRouter(c.loyalty, mw));

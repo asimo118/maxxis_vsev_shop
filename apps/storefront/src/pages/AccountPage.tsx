@@ -53,12 +53,13 @@ export function AccountPage(): ReactElement {
       <div className="card">
         <h2>我的訂單</h2>
         {orders.length === 0 && <p style={{ color: "var(--dim)" }}>還沒有訂單。<Link className="link" to="/">前往活動頁</Link></p>}
-        {orders.map((o) => (
+        {orders.slice(0, 3).map((o) => (
           <div className="row" key={o.id}>
             <Link className="link" to={`/orders/${o.id}`}>{o.number}</Link>
             <span>{ORDER_STATUS_LABELS[o.status]}・{formatTWD(o.amountCents)}・期限 {fmtDate(o.installDeadline)}</span>
           </div>
         ))}
+        {orders.length > 0 && <Link className="more-link" to="/orders">查看全部訂單、修改或追蹤 →</Link>}
       </div>
 
       {isOwner ? (

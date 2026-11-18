@@ -252,5 +252,17 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE orders ADD COLUMN external_ref TEXT;
   CREATE INDEX orders_external_ref ON orders (external_ref);
+  `,
+
+  /* ───────────── 3: order management — shipment tracking, cancellation requests, event kinds ───────────── */
+  `
+  ALTER TABLE orders ADD COLUMN tracking_carrier TEXT;
+  ALTER TABLE orders ADD COLUMN tracking_number TEXT;
+  ALTER TABLE orders ADD COLUMN cancel_requested_at TEXT;
+  ALTER TABLE orders ADD COLUMN cancel_reason TEXT;
+  CREATE INDEX orders_cancel_requested ON orders (cancel_requested_at);
+
+  -- status = transition; change = details edited (visible to the customer); note = admin-only comment
+  ALTER TABLE order_events ADD COLUMN kind TEXT NOT NULL DEFAULT 'status' CHECK (kind IN ('status', 'change', 'note'));
   `
 ];

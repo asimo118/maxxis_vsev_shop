@@ -12,8 +12,30 @@ import { errors } from "../../platform/errors";
 import type { EventBus } from "../../platform/events";
 import type { ShopNetworkRepository, ShopRecord } from "./shop-network.repository";
 
+const DAY_NAMES = ["", "一", "二", "三", "四", "五", "六", "日"] as const;
+
+/**
+ * Opening days + hours as customers read them: "每日 09:00–18:00", "週一至週六 09:00–18:00",
+ * "週一至週五、週日 10:00–19:00". Consecutive days (1 = Monday … 7 = Sunday) collapse into ranges.
+ */
 export function hoursLabel(hours: ShopHours): string {
-  return `${hours.open}–${hours.close}`;
+  const days = [...new Set(hours.days)].sort((a, b) => a - b);
+  const time = `${hours.open}–${hours.close}`;
+  if (days.length === 7) return `每日 ${time}`;
+  const runs: number[][] = [];
+  for (const d of days) {
+    const run = runs.at(-1);
+    if (run && run.at(-1) === d - 1) run.push(d);
+    else runs.push([d]);
+  }
+  const parts = runs.map((r) => {
+    const first = DAY_NAMES[r[0] ?? 0];
+    const last = DAY_NAMES[r.at(-1) ?? 0];
+    if (r.length === 1) return `週${first}`;
+    if (r.length === 2) return `週${first}、週${last}`;
+    return `週${first}至週${last}`;
+  });
+  return `${parts.join("、")} ${time}`;
 }
 
 const toMinutes = (hhmm: string): number => {

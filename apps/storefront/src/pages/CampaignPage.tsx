@@ -1,19 +1,16 @@
-import {
-  REGIONS,
-  REGION_LABELS,
-  SEED_CAMPAIGN,
-  evaluateCtaGate,
-  formatTWD,
-  type CampaignPageDto,
-  type Region
-} from "@vsev/shared";
+import { evaluateCtaGate, formatTWD, type Region } from "@vsev/shared";
 import { ErrorNote, Spinner, TreadDivider } from "@vsev/ui";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from "react";
-import { useNavigate } from "react-router-dom";
-import { api } from "../api";
-import { errorText, fmtMonthDay, sessionId } from "../format";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { beacon, useCampaign } from "../campaign";
+import { CoverageBox } from "../components/CoverageBox";
+import { RegionChips, ShopCard } from "../components/ShopCard";
+import { SiteFooter } from "../components/SiteFooter";
+import { fmtMonthDay } from "../format";
 
-const SLUG = (import.meta.env["VITE_CAMPAIGN_SLUG"] as string | undefined) ?? SEED_CAMPAIGN.slug;
+/** How many spec rows / FAQ items the landing page previews before linking to the full page. */
+const PREVIEW_SPECS = 4;
+const PREVIEW_FAQ = 3;
 
 function useCountdown(endIso: string | undefined): string {
   const [text, setText] = useState("--天 --:--:--");
@@ -36,14 +33,10 @@ function useCountdown(endIso: string | undefined): string {
   return text;
 }
 
-function beacon(event: string): void {
-  void api.post("/track", { sessionId: sessionId(), event, campaignSlug: SLUG }).catch(() => undefined);
-}
-
 export function CampaignPage(): ReactElement {
   const nav = useNavigate();
-  const [page, setPage] = useState<CampaignPageDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { page, error } = useCampaign();
+  const [params, setParams] = useSearchParams();
   const [modelId, setModelId] = useState("");
   const [shopId, setShopId] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
@@ -59,14 +52,25 @@ export function CampaignPage(): ReactElement {
   };
 
   useEffect(() => {
-    api
-      .get<CampaignPageDto>(`/campaigns/${SLUG}`)
-      .then((p) => {
-        setPage(p);
-        once("page_view");
-      })
-      .catch((e: unknown) => setError(errorText(e)));
-  }, []);
+    if (page) once("page_view");
+    // Runs once per loaded page.
+  }, [page]);
+
+  // Arriving from the shop directory (/shops → "選這家訂購") pre-selects that shop.
+  const preselect = params.get("shop");
+  useEffect(() => {
+    if (!page || !preselect) return;
+    if (page.shops.some((s) => s.id === preselect)) {
+      setShopId(preselect);
+      once("shop_selected");
+      requestAnimationFrame(() => panelRef.current?.scrollIntoView({ block: "center" }));
+    }
+    setParams((p) => {
+      p.delete("shop");
+      return p;
+    }, { replace: true });
+    // Reacts to the query parameter only.
+  }, [page, preselect]);
 
   const shops = page?.shops ?? [];
   const visible = region === "all" ? shops : shops.filter((s) => s.region === region);
@@ -209,17 +213,18 @@ export function CampaignPage(): ReactElement {
           <div className="spec-grid">
             <table className="spec">
               <tbody>
-                {c.specs.map((s) => (
+                {c.specs.slice(0, PREVIEW_SPECS).map((s) => (
                   <tr key={s.label}><th>{s.label}</th><td>{s.value}</td></tr>
                 ))}
               </tbody>
             </table>
             <div className="ev-points">
-              {c.evPoints.map((p) => (
+              {c.evPoints.slice(0, 2).map((p) => (
                 <div className="ev-card" key={p.title}><b>{p.title}</b><p>{p.body}</p></div>
               ))}
             </div>
           </div>
+          <Link className="more-link" to="/spec">查看完整產品規格 →</Link>
         </section>
       </div>
 
@@ -227,39 +232,23 @@ export function CampaignPage(): ReactElement {
       <div className="wrap">
         <section className="sec" id="shops">
           <div className="sec-head"><h2>選擇安裝店家</h2><span>{shops.length} 家配合據點・輪胎將直送你選擇的店家</span></div>
-          <p className="selector-note">依地區篩選，點「選這家」後會自動帶入上方訂單。</p>
-          <div className="region-rail" role="group" aria-label="地區篩選">
-            <button className="chip" aria-pressed={region === "all"} onClick={() => setRegion("all")}>全部 ({shops.length})</button>
-            {REGIONS.filter((r) => shops.some((s) => s.region === r)).map((r) => (
-              <button key={r} className="chip" aria-pressed={region === r} onClick={() => setRegion(r)}>
-                {REGION_LABELS[r]} ({shops.filter((s) => s.region === r).length})
-              </button>
-            ))}
-          </div>
+          <p className="selector-note">
+            依地區篩選，點「選這家」後會自動帶入上方訂單。想看營業時間、搜尋店名？<Link to="/shops">到安裝據點頁 →</Link>
+          </p>
+          <RegionChips shops={shops} value={region} onChange={setRegion} />
           <div className="shop-grid">
             {visible.map((s) => (
-              <div key={s.id} className={`shop-card${s.id === shopId ? " selected" : ""}`}>
-                <div className="shop-top"><span className="shop-name">{s.name}</span><span className="shop-region">{s.city}</span></div>
-                <div className="shop-addr">{s.address}</div>
-                <div className="shop-meta">
-                  <span className={s.openNow ? "open" : ""}>{s.openNow ? "● 營業中" : "○ 休息中"}</span>
-                  <span>{s.hoursLabel}</span>
-                </div>
-                <div className="shop-actions">
-                  {s.phone && <a href={`tel:${s.phone}`}>☎ 電話</a>}
-                  <a href={`https://www.google.com/maps/search/${encodeURIComponent(`${s.name} ${s.address}`)}`} target="_blank" rel="noopener noreferrer">➤ 導航</a>
-                  <button
-                    className="pick"
-                    onClick={() => {
-                      setShopId(s.id);
-                      once("shop_selected");
-                      panelRef.current?.scrollIntoView({ block: "center" });
-                    }}
-                  >
-                    {s.id === shopId ? "✓ 已選擇" : "選這家"}
-                  </button>
-                </div>
-              </div>
+              <ShopCard
+                key={s.id}
+                shop={s}
+                selected={s.id === shopId}
+                actionLabel={s.id === shopId ? "✓ 已選擇" : "選這家"}
+                onAction={() => {
+                  setShopId(s.id);
+                  once("shop_selected");
+                  panelRef.current?.scrollIntoView({ block: "center" });
+                }}
+              />
             ))}
           </div>
           <CoverageBox note={c.coverageNote} />
@@ -297,57 +286,19 @@ export function CampaignPage(): ReactElement {
       <div className="wrap">
         <section className="sec" id="faq">
           <div className="sec-head"><h2>常見問題</h2></div>
-          {c.faq.map((f) => (
+          {c.faq.slice(0, PREVIEW_FAQ).map((f) => (
             <details key={f.q}><summary>{f.q}</summary><div className="a">{f.a}</div></details>
           ))}
+          {c.faq.length > PREVIEW_FAQ && <Link className="more-link" to="/faq">看全部 {c.faq.length} 個問題 →</Link>}
         </section>
       </div>
 
-      <footer>
-        {c.contact.company}・{c.contact.address}
-        <br />
-        客服專線 {c.contact.phone}（{c.contact.hours}）・{c.contact.email}
-      </footer>
+      <SiteFooter contact={c.contact} />
 
       <div className="sticky-cta">
         <div className="p">{priceLabel}<small>4 條完工價</small></div>
         <button onClick={() => panelRef.current?.scrollIntoView({ block: "center" })}>立即訂購</button>
       </div>
     </>
-  );
-}
-
-function CoverageBox({ note }: { note: string }): ReactElement {
-  const [open, setOpen] = useState(false);
-  const [city, setCity] = useState("");
-  const [email, setEmail] = useState("");
-  const [done, setDone] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const submit = async (e: FormEvent): Promise<void> => {
-    e.preventDefault();
-    setErr(null);
-    try {
-      await api.post("/coverage-requests", { city, ...(email ? { email } : {}) });
-      setDone(true);
-    } catch (ex) {
-      setErr(errorText(ex));
-    }
-  };
-
-  return (
-    <div className="coverage">
-      <b>你所在的區域沒有據點？</b> {note}{" "}
-      {!open && <button className="link" onClick={() => setOpen(true)}>告訴我們你在哪裡</button>}
-      {open && !done && (
-        <form onSubmit={(e) => void submit(e)}>
-          <input required placeholder="縣市，例如：台北市" value={city} onChange={(e) => setCity(e.target.value)} />
-          <input type="email" placeholder="Email（選填，有據點時通知你）" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <button className="btn" type="submit">送出</button>
-          {err && <ErrorNote message={err} />}
-        </form>
-      )}
-      {done && <p className="ok-note">已收到，謝謝你！</p>}
-    </div>
   );
 }
