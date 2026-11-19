@@ -264,5 +264,23 @@ export const MIGRATIONS: readonly string[] = [
 
   -- status = transition; change = details edited (visible to the customer); note = admin-only comment
   ALTER TABLE order_events ADD COLUMN kind TEXT NOT NULL DEFAULT 'status' CHECK (kind IN ('status', 'change', 'note'));
+  `,
+
+  /* ───────────── 4: auth — server-side sessions (logout really ends a session), password change dates ───────────── */
+  `
+  -- auth: a token is only accepted while its session row is open (not revoked, not expired)
+  CREATE TABLE auth_sessions (
+    id          TEXT PRIMARY KEY,
+    audience    TEXT NOT NULL CHECK (audience IN ('storefront', 'admin')),
+    subject_id  TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    revoked_at  TEXT
+  ) STRICT;
+  CREATE INDEX auth_sessions_subject ON auth_sessions (audience, subject_id);
+  CREATE INDEX auth_sessions_expires ON auth_sessions (expires_at);
+
+  ALTER TABLE users ADD COLUMN password_changed_at TEXT;
+  ALTER TABLE admin_users ADD COLUMN password_changed_at TEXT;
   `
 ];

@@ -5,7 +5,7 @@ import { pinoHttp } from "pino-http";
 import type { Container } from "./container";
 import { errorMiddleware, notFoundHandler } from "./platform/http";
 import { createRateLimiter } from "./platform/rate-limit";
-import { createAdminAuthRouter, createAuthRouter } from "./modules/auth/auth.router";
+import { createAdminAccountsRouter, createAdminAuthRouter, createAuthRouter } from "./modules/auth/auth.router";
 import { createCatalogAdminRouter, createCatalogRouter } from "./modules/catalog/catalog.router";
 import { createFulfillmentAdminRouter, createFulfillmentRouter } from "./modules/fulfillment/fulfillment.router";
 import { createLoyaltyAdminRouter, createLoyaltyRouter } from "./modules/loyalty/loyalty.router";
@@ -41,7 +41,7 @@ export function createApp(c: Container): Express {
 
   // ── storefront API ──
   const api = Router();
-  api.use(["/auth/login", "/auth/register"], credentialLimit);
+  api.use(["/auth/login", "/auth/register", "/auth/password"], credentialLimit);
   api.use("/track", trackLimit);
   /** Public liveness + build version — CI uses it to confirm a deploy actually rolled out. */
   api.get("/health", (_req, res) => {
@@ -64,9 +64,10 @@ export function createApp(c: Container): Express {
 
   // ── admin API (separate audience; login is public, everything else guarded) ──
   const admin = Router();
-  admin.use("/auth/login", credentialLimit);
+  admin.use(["/auth/login", "/auth/password"], credentialLimit);
   admin.use(createAdminAuthRouter(c.auth, mw));
   admin.use(mw.requireAdmin);
+  admin.use(createAdminAccountsRouter(c.auth, mw));
   admin.use(createReportingAdminRouter(c.reporting, mw));
   admin.use(createOrderAdminRouter(c.orders, mw));
   admin.use(createFulfillmentAdminRouter(c.fulfillment, mw));

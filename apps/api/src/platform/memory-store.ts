@@ -1,5 +1,5 @@
 import type { NotificationKind } from "@vsev/shared";
-import type { AdminRecord, UserRecord } from "../modules/auth/auth.repository";
+import type { AdminRecord, SessionRecord, UserRecord } from "../modules/auth/auth.repository";
 import type { CampaignRecord } from "../modules/catalog/catalog.repository";
 import type { BookingRecord } from "../modules/fulfillment/fulfillment.repository";
 import type { PointsEntryRecord } from "../modules/loyalty/loyalty.repository";
@@ -13,6 +13,7 @@ import type { UserVehicleRecord, VehicleModelRecord } from "../modules/vehicle/v
 export interface MemoryStore {
   users: UserRecord[];
   admins: AdminRecord[];
+  sessions: SessionRecord[];
   models: VehicleModelRecord[];
   userVehicles: UserVehicleRecord[];
   shops: ShopRecord[];
@@ -36,6 +37,7 @@ export function createMemoryStore(): MemoryStore {
   return {
     users: [],
     admins: [],
+    sessions: [],
     models: [],
     userVehicles: [],
     shops: [],

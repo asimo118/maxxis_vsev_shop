@@ -7,7 +7,7 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 const external = Object.keys(pkg.dependencies).filter((name) => !name.startsWith("@vsev/"));
 
 await build({
-  entryPoints: { server: "src/server.ts", migrate: "src/cli/migrate.ts", seed: "src/cli/seed.ts", backup: "src/cli/backup.ts" },
+  entryPoints: { server: "src/server.ts", migrate: "src/cli/migrate.ts", seed: "src/cli/seed.ts", backup: "src/cli/backup.ts", "admin-reset": "src/cli/admin-reset.ts" },
   outdir: "dist",
   outExtension: { ".js": ".mjs" },
   bundle: true,
@@ -17,4 +17,4 @@ await build({
   sourcemap: true,
   external
 });
-console.log("api built → dist/{server,migrate,seed,backup}.mjs");
+console.log("api built → dist/{server,migrate,seed,backup,admin-reset}.mjs");
