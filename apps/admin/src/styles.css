@@ -93,4 +93,4 @@ table.t tr.click{cursor:pointer}table.t tr.click:hover{background:var(--carbon-2
 .inline-form input{background:var(--carbon-2);border:1px solid var(--edge);border-radius:8px;padding:6px 9px;font-family:var(--body);font-size:13px;min-width:200px}
 .t select{background:var(--carbon-2);border:1px solid var(--edge);border-radius:6px;padding:4px 6px;font-family:var(--body);font-size:13px}
 .link:disabled{opacity:.4;cursor:not-allowed}
-.side .who .link{padding:0;font-size:12.5px;background:none}
+.side .who .link{padding:0;font-size:12.5px;background:none;color:var(--maxxis)}
