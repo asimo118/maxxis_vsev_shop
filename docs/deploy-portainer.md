@@ -71,7 +71,7 @@ repo → Settings → Secrets and variables → Actions：
 ### 5. 確認
 
 - 前台：`http://<主機>:8080`
-- 後台：`http://<主機>:8081`，以 `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` 登入
+- 後台：`http://<主機>:8081`。第一次啟動（資料庫還沒有任何管理員）時，會用 `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` 建立第一個 manager 帳號
 - 版本：`http://<主機>:8080/api/v1/health` → `{"ok":true,"version":"<commit>"}`
 - 從任何電腦都可以跑完整檢查：
   `STOREFRONT=https://shop.example.com ADMIN=http://<主機>:8081 ADMIN_PASSWORD=… scripts/smoke-test.sh`
@@ -123,7 +123,11 @@ docker start maxxis-vsev-api-1 maxxis-vsev-backup-1
 **注意事項**
 
 - `api` 只能跑一個 replica（SQLite 一個檔案只能有一個寫入程序）；不要在 Portainer 調整 scale。
-- 管理員密碼以 `SEED_ADMIN_PASSWORD` 為準：`SEED_ON_BOOT=true` 時每次啟動都會套用。要換密碼就改環境變數再 redeploy。
+- `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` 只在資料庫完全沒有管理員時建立第一個帳號，**之後改這兩個值不會影響任何帳號**。
+  密碼請在後台「帳號設定」修改；每個人的帳號由 manager 在「後台帳號」建立、停用或重設密碼。
+- 所有 manager 都無法登入時（忘記密碼），在 API 容器執行：
+  `docker exec -it <api 容器> node dist/admin-reset.mjs <email>`
+  會把該帳號設為啟用中的 manager、登出它所有的登入，並印出一組只顯示一次的臨時密碼。登入後請立刻到「帳號設定」修改。
 - `ALLOW_MOCK_PAYMENTS=true` 只能用在測試站：所有付款自動成功、不會真的收錢。API 啟動時會在 log 警告。
 - Log：Portainer → Containers → `maxxis-vsev-api-1` → Logs（JSON 格式，每個檔 10MB、保留 5 個）。
 

@@ -1,8 +1,11 @@
 import { ErrorNote } from "@vsev/ui";
+import type { AdminRole } from "@vsev/shared";
 import { useState, type FormEvent, type ReactElement } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { errorText } from "./api";
 import { useAdmin } from "./auth";
+import { AccountSettingsPage } from "./pages/AccountSettingsPage";
+import { AdminsPage } from "./pages/AdminsPage";
 import { CampaignsPage } from "./pages/CampaignsPage";
 import { ConnectorsPage } from "./pages/ConnectorsPage";
 import { ContentPage } from "./pages/ContentPage";
@@ -36,23 +39,27 @@ function Login(): ReactElement {
   );
 }
 
-const NAV: [string, string][] = [
+/** [path, label, roles that see it (omitted = everyone)]. The API enforces the same limits. */
+const NAV: [string, string, AdminRole[]?][] = [
   ["/", "儀表板"], ["/orders", "訂單管理"], ["/content", "產品規格"], ["/shops", "店家管理"], ["/campaigns", "活動"],
-  ["/notifications", "通知"], ["/owners", "車主與點數"], ["/connectors", "外部連接"]
+  ["/notifications", "通知"], ["/owners", "車主與點數"], ["/connectors", "外部連接"], ["/admins", "後台帳號", ["manager"]]
 ];
 
 export function App(): ReactElement {
-  const { admin, ready, logout } = useAdmin();
+  const { admin, ready, logout, can } = useAdmin();
   if (!ready) return <p style={{ padding: 24 }}>載入中…</p>;
   if (!admin) return <Login />;
   return (
     <div className="shell">
       <nav className="side">
         <div className="brand">VSEV ADMIN</div>
-        {NAV.map(([to, label]) => (
+        {NAV.filter(([, , roles]) => !roles || can(...roles)).map(([to, label]) => (
           <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>{label}</NavLink>
         ))}
-        <div className="who">{admin.name}（{admin.role}）<br /><button className="link" onClick={logout}>登出</button></div>
+        <div className="who">
+          {admin.name}（{admin.role}）<br />
+          <NavLink to="/account" className="link">帳號設定</NavLink>{"　"}<button className="link" onClick={logout}>登出</button>
+        </div>
       </nav>
       <main className="main">
         <Routes>
@@ -65,6 +72,8 @@ export function App(): ReactElement {
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/owners" element={<OwnersPage />} />
           <Route path="/connectors" element={<ConnectorsPage />} />
+          <Route path="/account" element={<AccountSettingsPage />} />
+          {can("manager") && <Route path="/admins" element={<AdminsPage />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
