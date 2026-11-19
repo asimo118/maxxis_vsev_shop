@@ -35,6 +35,54 @@ export const loginBody = z.object({
 });
 export type LoginBody = z.infer<typeof loginBody>;
 
+/** Admins hold more power than customers, so their passwords must be longer (customers: 8). */
+export const ADMIN_PASSWORD_MIN = 12;
+
+const changePasswordFields = {
+  currentPassword: z.string().min(1).max(100),
+  /** Default: every other signed-in device is signed out (CASA 3.3.3). */
+  signOutOtherSessions: z.boolean().default(true)
+};
+const differentPassword = (b: { currentPassword: string; newPassword: string }): boolean => b.newPassword !== b.currentPassword;
+const differentMessage = { path: ["newPassword"], message: "新密碼不能與目前的密碼相同。" };
+
+export const changePasswordBody = z
+  .object({ ...changePasswordFields, newPassword: z.string().min(8, "新密碼至少 8 個字元。").max(100) })
+  .refine(differentPassword, differentMessage);
+export type ChangePasswordBody = z.infer<typeof changePasswordBody>;
+
+export const adminChangePasswordBody = z
+  .object({
+    ...changePasswordFields,
+    newPassword: z.string().min(ADMIN_PASSWORD_MIN, `新密碼至少 ${ADMIN_PASSWORD_MIN} 個字元。`).max(100)
+  })
+  .refine(differentPassword, differentMessage);
+export type AdminChangePasswordBody = z.infer<typeof adminChangePasswordBody>;
+
+const adminPassword = z.string().min(ADMIN_PASSWORD_MIN, `密碼至少 ${ADMIN_PASSWORD_MIN} 個字元。`).max(100);
+
+/** Manager → 後台帳號: one personal account per person (CASA 2.5.4: no shared accounts). */
+export const adminCreateBody = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+  name: z.string().trim().min(1).max(60),
+  role: z.enum(ADMIN_ROLES),
+  password: adminPassword
+});
+export type AdminCreateBody = z.infer<typeof adminCreateBody>;
+
+export const adminUpdateBody = z
+  .object({
+    name: z.string().trim().min(1).max(60).optional(),
+    role: z.enum(ADMIN_ROLES).optional(),
+    active: z.boolean().optional()
+  })
+  .refine((b) => b.name !== undefined || b.role !== undefined || b.active !== undefined, { message: "沒有要修改的欄位。" });
+export type AdminUpdateBody = z.infer<typeof adminUpdateBody>;
+
+/** A manager sets a temporary password for someone who forgot theirs; all of that admin's sessions end. */
+export const adminResetPasswordBody = z.object({ password: adminPassword });
+export type AdminResetPasswordBody = z.infer<typeof adminResetPasswordBody>;
+
 export const plateSchema = z
   .string()
   .trim()
@@ -243,6 +291,14 @@ export interface AdminDto {
   email: string;
   name: string;
   role: AdminRole;
+}
+
+/** Admin → 後台帳號 list row. */
+export interface AdminAccountDto extends AdminDto {
+  active: boolean;
+  createdAt: string;
+  /** Most recent sign-in, if any (for the monthly account review). */
+  lastLoginAt: string | null;
 }
 
 export interface AuthResultDto<T> {

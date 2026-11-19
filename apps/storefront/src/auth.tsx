@@ -16,13 +16,19 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
   const [user, setUser] = useState<UserDto | null>(null);
   const [ready, setReady] = useState(false);
 
-  const logout = useCallback(() => {
+  /** Local sign-out only (the server already rejected the token). */
+  const clear = useCallback(() => {
     setSessionToken(null);
     setUser(null);
   }, []);
 
+  /** Ends the session on the server first, so the token is useless even if it was copied. */
+  const logout = useCallback(() => {
+    void api.post("/auth/logout").catch(() => undefined).finally(clear);
+  }, [clear]);
+
   useEffect(() => {
-    setUnauthorizedHandler(logout);
+    setUnauthorizedHandler(clear);
     if (!readToken()) {
       setReady(true);
       return;
@@ -32,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
       .then(setUser)
       .catch(() => setSessionToken(null))
       .finally(() => setReady(true));
-  }, [logout]);
+  }, [clear]);
 
   const value = useMemo<AuthState>(
     () => ({

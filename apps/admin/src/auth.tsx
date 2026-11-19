@@ -14,16 +14,22 @@ const Ctx = createContext<AdminAuth | null>(null);
 export function AdminAuthProvider({ children }: { children: ReactNode }): ReactElement {
   const [admin, setAdmin] = useState<AdminDto | null>(null);
   const [ready, setReady] = useState(false);
-  const logout = useCallback(() => {
+  /** Local sign-out only (the server already rejected the token). */
+  const clear = useCallback(() => {
     setToken(null);
     setAdmin(null);
   }, []);
 
+  /** Ends the session on the server first, so a copied token is useless too. */
+  const logout = useCallback(() => {
+    void api.post("/auth/logout").catch(() => undefined).finally(clear);
+  }, [clear]);
+
   useEffect(() => {
-    setUnauthorizedHandler(logout);
+    setUnauthorizedHandler(clear);
     if (!hasToken()) return setReady(true);
     api.get<AdminDto>("/auth/me").then(setAdmin).catch(() => setToken(null)).finally(() => setReady(true));
-  }, [logout]);
+  }, [clear]);
 
   const value = useMemo<AdminAuth>(
     () => ({

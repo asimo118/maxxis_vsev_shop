@@ -2,12 +2,11 @@ import type { AdminRole } from "@vsev/shared";
 import type { RequestHandler } from "express";
 import { asyncHandler } from "../../platform/http";
 import { errors } from "../../platform/errors";
-import type { TokenService } from "../../platform/tokens";
 import type { AuthService } from "./auth.service";
 
 export type AuthContext =
-  | { kind: "user"; userId: string }
-  | { kind: "admin"; adminId: string; role: AdminRole };
+  | { kind: "user"; userId: string; sessionId: string }
+  | { kind: "admin"; adminId: string; role: AdminRole; sessionId: string };
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -26,29 +25,29 @@ function bearer(header: string | undefined): string | null {
 }
 
 export interface AuthMiddleware {
-  /** Storefront customer. Verifies a token signed with the STOREFRONT secret + audience. */
+  /** Storefront customer: STOREFRONT secret + audience, and the token's session must still be open. */
   requireUser: RequestHandler;
-  /** Any active admin. Verifies a token signed with the ADMIN secret + audience, and re-checks the admin row. */
+  /** Any active admin: ADMIN secret + audience, an open session, and an active admin row (re-read every request). */
   requireAdmin: RequestHandler;
   /** Role gate — use after requireAdmin. */
   allow: (...roles: AdminRole[]) => RequestHandler;
 }
 
-export function createAuthMiddleware(tokens: TokenService, auth: AuthService): AuthMiddleware {
-  const requireUser: RequestHandler = (req, _res, next) => {
+export function createAuthMiddleware(auth: AuthService): AuthMiddleware {
+  const requireUser: RequestHandler = asyncHandler(async (req, _res, next) => {
     const token = bearer(req.header("authorization"));
-    const userId = token ? tokens.verify("storefront", token) : null;
-    if (!userId) return next(errors.unauthenticated());
-    req.auth = { kind: "user", userId };
+    const claims = token ? await auth.authenticate("storefront", token) : null;
+    if (!claims) return next(errors.unauthenticated());
+    req.auth = { kind: "user", userId: claims.subject, sessionId: claims.sessionId };
     next();
-  };
+  });
 
   const requireAdmin: RequestHandler = asyncHandler(async (req, _res, next) => {
     const token = bearer(req.header("authorization"));
-    const adminId = token ? tokens.verify("admin", token) : null;
-    const admin = adminId ? await auth.getActiveAdmin(adminId) : null;
-    if (!admin) return next(errors.unauthenticated());
-    req.auth = { kind: "admin", adminId: admin.id, role: admin.role };
+    const claims = token ? await auth.authenticate("admin", token) : null;
+    const admin = claims ? await auth.getActiveAdmin(claims.subject) : null;
+    if (!claims || !admin) return next(errors.unauthenticated());
+    req.auth = { kind: "admin", adminId: admin.id, role: admin.role, sessionId: claims.sessionId };
     next();
   });
 
@@ -71,4 +70,10 @@ export function userIdOf(req: { auth?: AuthContext }): string {
 export function adminOf(req: { auth?: AuthContext }): { adminId: string; role: AdminRole } {
   if (req.auth?.kind !== "admin") throw errors.unauthenticated();
   return { adminId: req.auth.adminId, role: req.auth.role };
+}
+
+/** The session behind the current request (logout ends exactly this one). */
+export function sessionIdOf(req: { auth?: AuthContext }): string {
+  if (!req.auth) throw errors.unauthenticated();
+  return req.auth.sessionId;
 }

@@ -186,7 +186,7 @@ export async function createContainer(
   const tokens = createTokenService({ storefront: config.JWT_SECRET_STOREFRONT, admin: config.JWT_SECRET_ADMIN });
 
   const auth = new AuthService({ repo: repos.auth, tokens, bcryptCost: config.BCRYPT_COST });
-  const middleware = createAuthMiddleware(tokens, auth);
+  const middleware = createAuthMiddleware(auth);
   const vehicles = new VehicleService(repos.vehicle);
   const shops = new ShopNetworkService({
     repo: repos.shops,

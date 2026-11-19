@@ -16,7 +16,7 @@ x-api-env: &api-env
   # Required — the stack refuses to deploy without them.
   JWT_SECRET_STOREFRONT: ${JWT_SECRET_STOREFRONT:?set JWT_SECRET_STOREFRONT (32+ random characters)}
   JWT_SECRET_ADMIN: ${JWT_SECRET_ADMIN:?set JWT_SECRET_ADMIN (32+ random characters, different from the storefront one)}
-  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD (first admin login)}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?set SEED_ADMIN_PASSWORD (password of the first manager, used only on an empty database)}
   SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@vsev.local}
   SEED_ON_BOOT: ${SEED_ON_BOOT:-true}
   BCRYPT_COST: ${BCRYPT_COST:-10}

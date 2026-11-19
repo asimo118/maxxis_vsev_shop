@@ -52,5 +52,6 @@ export async function seed(c: Container, opts: { adminEmail: string; adminPasswo
     }
   }
 
-  await c.auth.upsertAdmin({ email: opts.adminEmail, password: opts.adminPassword, name: "Admin", role: "manager" });
+  // First boot only: never resets an existing admin, so passwords changed in the console survive restarts.
+  await c.auth.ensureBootstrapAdmin({ email: opts.adminEmail, password: opts.adminPassword });
 }
